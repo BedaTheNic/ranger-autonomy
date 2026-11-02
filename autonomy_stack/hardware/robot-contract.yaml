@@ -75,6 +75,18 @@ navigation:
   canonical_config_directory: ugv_sim/ranger/ranger_mini/config
   log_rotation_bytes: 20971520
   one_application_process_per_service: true
+  robot_planning_probe:
+    action: /compute_path_to_pose
+    succeeded: true
+    error_code: 0
+    use_start: false
+    frame: map
+    start_xy_m: [-0.3568232581, -0.6127262600]
+    goal_xy_m: [0.0, 0.0]
+    path_poses: 41
+    path_length_m_approx: 1.007
+    reported_planning_time_ms: 7.945908
+    drive_command_sent: false
 steering_feedback:
   joint_states_topic_present: true
   ranger_wheel_joint_names_verified: false

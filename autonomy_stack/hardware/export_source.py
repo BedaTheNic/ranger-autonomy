@@ -31,11 +31,15 @@ def export(workspace, destination):
     shutil.copy2(workspace/'ranger_ros2/LICENSE', destination/'ranger_ros2/LICENSE')
     docs = destination/'docs'
     docs.mkdir()
+    source_docs = workspace/'ranger_navigation_startup'
+    if not source_docs.is_dir():
+        source_docs = workspace/'docs'
     for name in ('ADAPTIVE_NAVIGATION.md', 'LOGGING.md'):
-        shutil.copy2(workspace/'ranger_navigation_startup'/name, docs/name)
+        shutil.copy2(source_docs/name, docs/name)
     workflows = destination/'.github/workflows'
     workflows.mkdir(parents=True)
-    shutil.copy2(workspace/'autonomy_stack/hardware/ci/publish.yaml', workflows/'publish.yaml')
+    for workflow in (workspace/'autonomy_stack/hardware/ci').glob('*.yaml'):
+        shutil.copy2(workflow, workflows/workflow.name)
     (destination/'README.md').write_text(
         '# Ranger autonomy — Jazzy\n\n'
         'Adaptive navigation and structured logging, packaged as separate ROS containers.\n\n'

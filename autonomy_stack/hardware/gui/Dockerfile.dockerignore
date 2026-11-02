@@ -1,0 +1,5 @@
+**
+!autonomy_stack
+!autonomy_stack/hardware
+!autonomy_stack/hardware/gui
+!autonomy_stack/hardware/gui/**

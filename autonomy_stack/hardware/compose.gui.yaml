@@ -1,0 +1,41 @@
+name: ranger-viewer
+x-gui-runtime: &gui-runtime
+  image: ${AUTONOMY_GUI_IMAGE:-ghcr.io/bedathenic/ranger-autonomy:jazzy-r3-gui}
+  network_mode: host
+  ipc: private
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 25s
+  environment: &gui-environment
+    ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-9}
+    ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
+    RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+    FASTDDS_BUILTIN_TRANSPORTS: UDPv4
+    HARDWARE_MODE: "true"
+    USE_SIM_TIME: "false"
+    RANGER_LOG_ROOT: /logs
+    RANGER_DEPLOYMENT_ID: ${RANGER_DEPLOYMENT_ID:-viewer}
+    RANGER_LOG_MAX_BYTES: ${RANGER_LOG_MAX_BYTES:-20971520}
+    RANGER_GUI_PORT: ${RANGER_GUI_PORT:-6080}
+    RANGER_GUI_NAVIGATION_TOOLS: ${RANGER_GUI_NAVIGATION_TOOLS:-false}
+  volumes:
+    - ./logs:/logs
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+services:
+  rviz-web:
+    <<: *gui-runtime
+    shm_size: 256m
+    environment:
+      <<: *gui-environment
+      RANGER_LOG_SERVICE: rviz-web
+  goal-preview:
+    <<: *gui-runtime
+    entrypoint: [/opt/autonomy/entrypoint.sh]
+    command: [python3, /opt/autonomy/gui/plan_preview.py]
+    stop_signal: SIGINT
+    healthcheck: {disable: true}
+    environment:
+      <<: *gui-environment
+      RANGER_LOG_SERVICE: goal-preview

@@ -276,6 +276,71 @@ Izlaz mu je `/autonomy/scan`; u `.env` uskladi `OBSTACLE_SCAN_TOPIC` i/ili
 
 ## Logovi i provjere
 
+### Windows CMD: karta i cilj u pregledniku
+
+RViz/noVNC radi u zasebnom amd64 imageu
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r3-gui`, izgrađenom povrh provjerenog
+navigation imagea `jazzy-r3`. `rviz-web` je jedini RViz ROS proces, a zasebni
+`goal-preview` prima klik i zove isključivo `/compute_path_to_pose`.
+Postojeći navigacijski servisi i robotov `ranger_hero_jazzy` ostaju u svojim
+Compose projektima. Viewer koristi projekt `ranger-viewer`, pa ga ponovno
+pokretanje `robot.sh external` neće ukloniti kao orphan.
+
+U deployment direktoriju moraju biti `compose.gui.yaml` i `viewer.sh` iz ovog
+repozitorija (stara `jazzy-r3` arhiva još ih ne sadrži). Na hostu robota:
+
+```bash
+cd ~/ranger_autonomy/ranger-hardware
+bash viewer.sh pull
+bash viewer.sh up
+bash viewer.sh status
+```
+
+Na Windows računalu otvori CMD i SSH tunel; zamijeni `ROBOT_IP` svojom adresom:
+
+```cmd
+ssh -N -L 6080:127.0.0.1:6080 ranger@ROBOT_IP
+```
+
+Ostavi taj prozor otvoren. U pregledniku na Windows računalu otvori
+`http://localhost:6080/vnc.html?autoconnect=true&resize=scale`.
+noVNC sluša samo na loopbacku robota, a pristup ide kroz autentificirani SSH
+tunel. Nije potrebno instalirati ROS ili X server na Windows. Ako je lokalni
+port 6080 zauzet, koristi `-L 6081:127.0.0.1:6080` i otvori localhost:6081.
+
+Prikaz je postavljen na okvir `map`; vidi se `/map`, TF položaj
+`ranger_base_link`, `/odom`, `/scan_obstacles`, footprint i plava preview putanja.
+Položaj robota prikazan je crvenom strelicom odometrije i TF oznakom baze. Footprint je konfiguracija
+costmape i nije potvrda izmjerenog obrisa s opremom. 3D model i gusti cloud
+nisu potrebni za ovaj pregled karte. Kotačić miša mijenja povećanje; srednja
+tipka omogućuje pomicanje pogleda.
+
+Za zadavanje cilja odaberi **2D Goal Pose**, zatim pritisni lijevu tipku na
+slobodnoj točki i povuci u željenom smjeru završne orijentacije. Klik objavljuje
+`/autonomy/preview_goal`, `goal-preview` zove razvijeni adaptivni planer s
+`use_start=false` i rezultat prikazuje na `/autonomy/preview_path`. Ovdje se
+izračunava putanja, bez slanja `/navigate_to_pose` ili brzinskih naredbi.
+Neuspjeli cilj briše staru preview putanju. Status je u `bash viewer.sh logs`
+i topicu `/autonomy/preview_status`. `goal-preview` snima konzolu kroz postojeći
+logger, a `telemetry` i dalje bilježi izvorni globalni plan i odluke planera.
+
+Nakon dovršetka fizičke integracije može se u `.env` postaviti
+`RANGER_GUI_NAVIGATION_TOOLS=true` i ponovno pokrenuti `bash viewer.sh up`.
+To dodaje standardni **Nav2 Goal** alat i Navigation 2 panel, koji koriste
+`NavigateToPose` i postojeći razvijeni BT/kontroler. Ova postavka sama ne
+povezuje `/cmd_vel_nav` s pogonom niti dodaje kutove kotača.
+
+Zaustavljanje samo viewera:
+
+```bash
+bash viewer.sh down
+```
+
+Workflow `publish-gui.yaml` gradi samo amd64 GUI image i prije objave provjerava
+RViz/noVNC te relay ciljeva preko stvarnog ROS action API-ja u odvojenoj Docker
+mreži. Test ima sintetički action server: ne predstavlja novo testiranje
+algoritma planera niti potvrdu fizičke vožnje.
+
 Svaki poziv mapping/localization/external dobiva ID pokretanja. Logovi su na
 hostu u `logs/<ID>/GGGG-MM-DD/<sesija-servisa>/`:
 
