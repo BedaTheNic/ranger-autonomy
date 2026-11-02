@@ -125,7 +125,10 @@ def capture_feedback(interface, seconds):
     try:
         with socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW) as receiver:
             # Only standard data frames 0x200..0x2ff (feedback group). No send calls.
-            mask = 0x700 | socket.CAN_EFF_FLAG | socket.CAN_RTR_FLAG | socket.CAN_ERR_FLAG
+            # CAN_ERR_FLAG in can_mask selects the kernel's error-only receive
+            # list, rather than excluding error frames. Error reception is off
+            # by default; check flags again after recv for defensive validation.
+            mask = 0x700 | socket.CAN_EFF_FLAG | socket.CAN_RTR_FLAG
             receiver.setsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_FILTER,
                                 struct.pack('=II', 0x200, mask))
             receiver.bind((interface,))
@@ -167,7 +170,7 @@ def main():
         parser.error('--seconds must be greater than 0 and at most 30')
     processes = driver_processes()
     roots = source_roots(processes, args.source_root)
-    report = dict(schema=1, commands_transmitted=0, driver_processes=processes,
+    report = dict(schema=2, commands_transmitted=0, driver_processes=processes,
                   source_search_roots=[str(root) for root in roots],
                   sources=inspect_sources(roots),
                   can_feedback=capture_feedback(args.can_interface, args.seconds),

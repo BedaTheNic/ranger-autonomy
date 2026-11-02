@@ -5,6 +5,7 @@ robot:
   model: Ranger Mini
   generation: null
   driver_robot_model_observed: ranger_mini_v3
+  driver_geometry_constants_m: {wheelbase: 0.494, track: 0.364}
   ros_distribution: jazzy
   architecture_observed: amd64
   build_platforms: [linux/amd64]
@@ -81,4 +82,9 @@ steering_feedback:
   actuator_state_topic: /actuator_state
   actuator_state_type: ranger_msgs/msg/ActuatorStateArray
   actuator_state_publisher: /ranger_base_node
+  driver_source_path_observed: /root/ranger_ws/src/ranger_ros2/ranger_base/src/ranger_messenger.cpp
+  driver_source_sha256_observed: 4e0ed517c8ba29cd0c40e3e0568d3eeffefa53747b3c6a208c71266675fcdf6d
+  source_repeats_angle5_and_actuator0: true
+  source_matches_running_binary_verified: false
+  raw_can_motor_angle_frame_verified: false
   independent_measured_wheel_angles_verified: false

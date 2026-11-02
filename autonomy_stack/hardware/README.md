@@ -104,6 +104,30 @@ izvora na disku ne potvrđuje da je upravo iz njega izgrađen aktivni binary.
 Skripta se može preuzeti zasebno iz ovog direktorija bez nove verzije imagea;
 stara arhiva `jazzy-r3` još je ne sadrži.
 
+**Ispravak CAN dijagnostike:** prvotna skripta (`schema: 1`) pogrešno je imala
+`CAN_ERR_FLAG` u receive maski. Linux tada odabire listu error frameova, pa
+prazan capture ne govori ništa o dostupnosti standardnog CAN feedbacka.
+Ispravljena skripta (`schema: 2`) koristi `CAN_EFF_FLAG | CAN_RTR_FLAG | 0x700`,
+a zastavice dodatno provjerava nakon primitka. Već prikupljen izvor drivera je
+upotrebljiv: na robotu je potvrđen kod koji svim zapisima dodjeljuje `angle_5`
+i podatke aktuatora 0. Aktivni binary nije povezan s izvornim kodom dokazom
+builda, a neovisni kutovi na CAN-u još se trebaju potvrditi ponovnom provjerom.
+
+Regresija koristi stvarni Linux SocketCAN i vlastiti virtualni CAN u potpuno
+odvojenoj mreži. Ne pokreće se izravno na robotu. Iz korijena repozitorija,
+s već izgrađenim lokalnim imageom:
+
+```bash
+docker run --rm --network none --cap-add NET_ADMIN \
+  --mount type=bind,source="$PWD/autonomy_stack/hardware",target=/test,readonly \
+  --entrypoint python3 ranger-autonomy:jazzy-r3 /test/tests/inspect_drive_can.py
+```
+
+Test odbija rad ako u mrežnom namespaceu već postoji sučelje osim loopbacka.
+Za njega host kernel mora podržavati `vcan`. Stari filter reproducira gubitak
+poruka, a ispravljeni mora primiti sve testne poruke i odbaciti druge ID-eve,
+extended i RTR frameove. Ovaj test nije potvrda kalibracije fizičkih kotača.
+
 Nav2 izlaz ostaje `/cmd_vel_nav`. Za fizičku vožnju još treba povezati izbor
 izvora naredbi, timeout i zaustavljanje s postojećim pogonom, provjeriti
 izmjerenu povratnu informaciju kotača i stvarni footprint uključujući opremu.
