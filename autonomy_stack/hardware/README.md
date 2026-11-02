@@ -21,6 +21,9 @@ poznate neuspjele simulacijske pokuse; oni nisu potvrda fizičke navigacije.
 
 Svaki red predstavlja zaseban kontejner s jednim aplikacijskim ROS procesom.
 Svi koriste isti image; ne gradi se druga kopija imagea za svaki servis.
+Vidljivi nazivi su `ranger_hero_planner`, `ranger_hero_controller`,
+`ranger_hero_rviz-web`, `ranger_hero_drive-guard` i odgovarajući naziv ostalih
+servisa. Compose projekti ostaju isti radi prepoznavanja već pokrenutih servisa.
 
 | Servis | Proces / uloga | Kada radi |
 |---|---|---|
@@ -298,11 +301,12 @@ bash drive.sh arm
 Ranije prihvaćeni goalovi ne uključuju pogon. **2D Goal Pose** je i dalje samo
 preview. Za prvu probu odaberi slobodan cilj blizu robota, uz spremljenu ruku i
 dostupan fizički E-stop. Brzina je ograničena na 0.05 m/s i 0.10 rad/s; skaliranje
-čuva smjer i zakrivljenost naredbe. Odabrani test traje najviše 60 sekundi.
+čuva smjer i zakrivljenost naredbe. Nema automatskog disarma prema trajanju;
+most ostaje uključen do ručnog disarma ili druge provjere za zaustavljanje.
 
-Most odbija uključivanje ako drugi čvorovi objavljuju na `/cmd_vel`, uključujući
-teleop/spray/Kinova aplikacije. Njih treba zaustaviti kroz postojeći startup,
-uz zadržavanje baze, senzora i SLAM-a; skripta ih ne ubija. Provjerava se i
+Drugi izdavači na `/cmd_vel` se prikazuju u statusu i više ne blokiraju
+uključivanje ili vožnju. Između istodobnih izdavača nije dodan izbor prioriteta;
+njegova integracija ostaje zaseban korak. Provjerava se i
 poznati skup izdavača `/cmd_vel_nav`, aktivni kontroler, realno vrijeme,
 svježa odometrija te `/system_state` bez greške/E-stopa i u CAN načinu.
 Adaptivni/Ackermann kontroleri dodatno zahtijevaju svježe četiri steering
@@ -327,8 +331,54 @@ u slučaju gubitka napajanja/SIGKILL-a procesa na robotu.
 
 Test: `python3 autonomy_stack/hardware/tests/drive_smoke.py --image IMAGE` iz
 korijena repozitorija. Koristi sintetičke bazu i kontroler u internoj mreži,
-uključujući blokadu starih goalova, drugih izdavača, timeout, E-stop stanje,
+uključujući blokadu starih goalova, dopuštanje drugih izdavača, timeout, E-stop stanje,
 zastarjelu odometriju i nedostatak steeringa u adaptivnom profilu.
+
+### Nadogradnja i Ackermann dijagnostika
+
+`apply_update.sh FULL_COMMIT_SHA` preuzima samo deployment datoteke, provjerava
+ih prije promjene i sprema prethodne verzije u `update_backups`. Pokreni ga dok
+robot miruje. Korištenjem `docker rename` preimenuje postojeće kontejnere na
+mjestu, uključujući zaustavljene, bez ponovnog stvaranja aplikacijskih kontejnera.
+Samo pogonski most se isključi, zaustavi i ponovo pokrene radi učitavanja nove
+Python skripte. `.env`, karte, logovi i C++ izvori planera/kontrolera se ne
+prepisuju. Nepoznati dodatni Compose servis zahtijeva ručno spajanje promjena.
+Kod budućeg `compose up` Compose može ponovno stvoriti kontejnere kad promijeni
+konfiguraciju; izmjene u njihovu writable layeru prvo treba spremiti u izvor/image.
+
+Na konfiguriranom Mini V3 driver iz `Twist` bira način baze:
+
+| Ulaz | Način baze |
+|---|---|
+| `linear.y != 0` | paralelni, mode 1 |
+| `linear.y = 0`, `linear.x != 0`, `angular.z = 0` | dual Ackermann, ravno |
+| `linear.y = 0`, `abs(linear.x/angular.z) >= 0.47644 m` | dual Ackermann, mode 0 |
+| `linear.y = 0`, manji polumjer, uključujući rotaciju na mjestu | spinning, mode 2 |
+
+Driver uspoređuje `linear.y` s nulom bez tolerancije: i vrlo mala nenulta
+vrijednost bira paralelni način. Npr. `vx=0.05 m/s, vy=0, wz=0.025 rad/s`
+predstavlja Ackermann luk polumjera 2 m, ujedno unutar granica mosta. Ovo opisuje
+izbor režima u driveru, odvojeno od MPPI/Ackermann Nav2 profila koji dodatno
+zahtijeva provjerenu povratnu informaciju četiri kotača.
+
+Izvori: [Ranger ROS2 driver](https://github.com/agilexrobotics/ranger_ros2/blob/humble/ranger_base/src/ranger_messenger.cpp),
+[SDK CAN parser](https://github.com/agilexrobotics/ugv_sdk/blob/main/src/protocol_v2/agilex_msg_parser_v2.c).
+
+Za usporedbu ROS mjerenja i sirovog CAN-a:
+
+```bash
+bash ackermann_check.sh 20
+```
+
+Snimanje ne šalje ROS ni CAN naredbe. Tijekom tih 20 sekundi možeš u zasebnom
+prozoru izvesti već pripremljenu kratku probu u kojoj kotači mijenjaju kut.
+Arhiva sadrži `feedback.json`, pregled izvora postojećeg drivera, trenutačne
+parametre i nedavne logove planiranja/kontrolera. CAN `0x271` sadrži četiri signed big-endian kuta
+kanala 5–8 u 0.001 rad, `0x291` način i `mode_changing`, a `0x251..0x258` podatke
+aktuatora s RPM/current/pulse_count. Encoder countovi se ne pretvaraju u kutove.
+Report pokazuje minimalne/maksimalne i zadnje kutove po ID-u te stvarne svježine
+primanja. Stalni kut tijekom mirovanja sam po sebi nije greška. Fizički redoslijed,
+znakovi i nule kotača još trebaju potvrdu prije JointState adaptera za MPPI.
 
 ### Windows CMD: karta i cilj u pregledniku
 

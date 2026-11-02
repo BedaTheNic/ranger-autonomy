@@ -25,12 +25,14 @@ x-gui-runtime: &gui-runtime
     options: {max-size: 10m, max-file: "3"}
 services:
   rviz-web:
+    container_name: ranger_hero_rviz-web
     <<: *gui-runtime
     shm_size: 256m
     environment:
       <<: *gui-environment
       RANGER_LOG_SERVICE: rviz-web
   goal-preview:
+    container_name: ranger_hero_goal-preview
     <<: *gui-runtime
     entrypoint: [/opt/autonomy/entrypoint.sh]
     command: [python3, /opt/autonomy/gui/plan_preview.py]

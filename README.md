@@ -2,6 +2,13 @@
 
 Adaptive Ranger Mini navigation and structured logging, split into separate ROS containers.
 
+Current deployment helpers use `ranger_hero_<service>` container names. The drive
+gateway permits other `/cmd_vel` publishers and has no elapsed-time disarm;
+command timeout, odometry and E-stop checks remain. Existing installations can
+apply a pinned revision with `autonomy_stack/hardware/apply_update.sh`.
+Ackermann ROS/CAN captures use `ackermann_check.sh`; see the hardware deployment
+instructions for the current update and diagnostic procedures.
+
 - Global planning: custom Smac Hybrid-A* / Lattice selection.
 - Local control: custom adaptive MPPI Ackermann / DWB holonomic execution.
 - Retained valid paths, planned rotations and final approach behavior.

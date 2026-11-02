@@ -17,7 +17,11 @@ import time
 
 
 PATTERNS = {
-    'ranger_messenger.cpp': (r'motor_angles|motor_speeds|actuator_[hl]s_state', 4),
+    'ranger_messenger.cpp': (r'motor_angles|motor_speeds|actuator_[hl]s_state|TwistCmdCallback|CalculateSteeringAngle|SetMotionMode|SetMotionCommand', 8),
+    'ranger_actuator_state_node.cpp': (r'motor_angles|pulse_count|angle_[5678]|can_id|CAN_RAW|GetActuatorState', 10),
+    'ranger_actuator_state.cpp': (r'motor_angles|pulse_count|angle_[5678]|can_id|CAN_RAW|GetActuatorState', 10),
+    'ranger_actuator_state_node.py': (r'motor_angles|pulse_count|angle_[5678]|can_id|CAN_RAW|GetActuatorState', 10),
+    'ranger_actuator_state.py': (r'motor_angles|pulse_count|angle_[5678]|can_id|CAN_RAW|GetActuatorState', 10),
     'ranger_base.hpp': (r'GetActuatorState|motor_angles|using RangerMiniV3Base', 4),
     'agilex_msg_parser_v2.c': (r'case CAN_MSG_MOTOR_ANGLE_INFO:', 23),
     'agilex_protocol_v2.h': (r'CAN_MSG_MOTOR_ANGLE_INFO|} struct16_t;|} MoterAngleFrame;', 6),
@@ -34,7 +38,9 @@ def driver_processes():
             continue
         try:
             args = proc.joinpath('cmdline').read_bytes().split(b'\0')
-            if not args or Path(os.fsdecode(args[0])).name != 'ranger_base_node':
+            names={'ranger_base_node','ranger_actuator_state_node','ranger_actuator_state_node.py',
+                   'ranger_actuator_state','ranger_actuator_state.py'}
+            if not args or not any(Path(os.fsdecode(arg)).name in names for arg in args[:2]):
                 continue
             environment = dict(item.split(b'=', 1) for item in
                                proc.joinpath('environ').read_bytes().split(b'\0') if b'=' in item)
@@ -43,6 +49,8 @@ def driver_processes():
                          'AMENT_PREFIX_PATH', 'COLCON_PREFIX_PATH') if key.encode() in environment}
             executable = os.readlink(proc / 'exe')
             result.append(dict(pid=int(proc.name), executable=executable,
+                               program=next(Path(os.fsdecode(arg)).name for arg in args[:2]
+                                            if Path(os.fsdecode(arg)).name in names),
                                cwd=os.readlink(proc / 'cwd'), environment=selected))
         except (OSError, ValueError):
             continue

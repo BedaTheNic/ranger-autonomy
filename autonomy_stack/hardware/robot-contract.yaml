@@ -75,8 +75,10 @@ commands:
     max_linear_mps: 0.05
     max_angular_radps: 0.10
     command_timeout_s: 0.30
-    arm_duration_s: 60
-    requires_exclusive_cmd_vel: true
+    elapsed_time_disarm: false
+    requires_exclusive_cmd_vel: false
+    other_cmd_vel_publishers_recorded: true
+    initial_holonomic_motion_user_reported_passed: true
     physical_drive_validated: false
 navigation:
   default_profile: adaptive
@@ -113,3 +115,10 @@ steering_feedback:
   source_matches_running_binary_verified: false
   raw_can_motor_angle_frame_verified: false
   independent_measured_wheel_angles_verified: false
+ackermann_diagnostics:
+  command_interface: geometry_msgs/msg/Twist
+  require_exact_zero_lateral_for_ackermann: true
+  configured_minimum_turn_radius_m: 0.47644
+  can_angle_frame: '0x271'
+  can_mode_frame: '0x291'
+  passive_capture_script: ackermann_check.sh

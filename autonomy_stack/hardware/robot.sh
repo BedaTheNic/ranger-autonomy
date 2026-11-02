@@ -22,7 +22,7 @@ case "$action" in
       slam slam-lifecycle map-server amcl localization-lifecycle
     "${compose[@]}" "${profiles[@]}" up -d --remove-orphans
     ;;
-  check) "${compose[@]}" --profile tools run --rm --no-deps preflight ;;
+  check) "${compose[@]}" --profile tools run --rm --no-deps --name "ranger_hero_preflight_$$" preflight ;;
   down) "${compose[@]}" --profile '*' down ;;
   status) "${compose[@]}" --profile '*' ps ;;
   logs) shift; "${compose[@]}" --profile '*' logs --tail=100 "$@" ;;

@@ -11,7 +11,8 @@ import tarfile
 def export(workspace, destination):
     destination.mkdir(parents=True, exist_ok=False)
     ignored = shutil.ignore_patterns('.git', '.env', '__pycache__', '*.pyc',
-                                     'logs', 'maps', 'dist', '.runtime', 'build', 'install', 'log')
+                                     'logs', 'maps', 'dist', '.runtime', 'build', 'install', 'log',
+                                     'ackermann_report_*', 'update_backups', '.update.*')
     packages = ('ugv_sim/ranger/ranger_nav_plugins', 'ugv_sim/ranger/four_ws_control',
                 'ugv_sim/ranger/ranger_logging', 'ranger_ros2/ranger_msgs',
                 'autonomy_stack/hardware', 'autonomy_stack/launch', 'autonomy_stack/config')
@@ -47,7 +48,8 @@ def export(workspace, destination):
         'Canonical navigation behavior: [details](docs/ADAPTIVE_NAVIGATION.md).\n\n'
         'Structured logging: [details](docs/LOGGING.md).\n')
     (destination/'.gitignore').write_text(
-        '.env\n**/__pycache__/\n**/*.pyc\n**/logs/\n**/maps/\n**/dist/\n**/build/\n**/install/\n**/log/\n')
+        '.env\n**/__pycache__/\n**/*.pyc\n**/logs/\n**/maps/\n**/dist/\n**/build/\n**/install/\n**/log/\n'
+        '**/ackermann_report_*\n**/update_backups/\n**/.update.*/\n')
     archive = destination.with_suffix('.tar.gz')
     with tarfile.open(archive, 'w:gz') as stream:
         stream.add(destination, arcname='ranger-autonomy')

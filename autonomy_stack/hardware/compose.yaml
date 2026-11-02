@@ -41,56 +41,71 @@ x-runtime: &runtime
 
 services:
   scan-adapter:
+    container_name: ranger_hero_scan-adapter
     <<: *runtime
     profiles: [scan-adapter]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=scan-adapter]
   slam:
+    container_name: ranger_hero_slam
     <<: *runtime
     profiles: [mapping]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=slam]
   slam-lifecycle:
+    container_name: ranger_hero_slam-lifecycle
     <<: *runtime
     profiles: [mapping]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=slam-lifecycle]
   map-server:
+    container_name: ranger_hero_map-server
     <<: *runtime
     profiles: [localization]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=map-server]
   amcl:
+    container_name: ranger_hero_amcl
     <<: *runtime
     profiles: [localization]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=amcl]
   localization-lifecycle:
+    container_name: ranger_hero_localization-lifecycle
     <<: *runtime
     profiles: [localization]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=localization-lifecycle]
   planner:
+    container_name: ranger_hero_planner
     <<: *runtime
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=planner]
   controller:
+    container_name: ranger_hero_controller
     <<: *runtime
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=controller]
   behaviors:
+    container_name: ranger_hero_behaviors
     <<: *runtime
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=behaviors]
   bt-navigator:
+    container_name: ranger_hero_bt-navigator
     <<: *runtime
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=bt-navigator]
   navigation-lifecycle:
+    container_name: ranger_hero_navigation-lifecycle
     <<: *runtime
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=navigation-lifecycle]
   telemetry:
+    container_name: ranger_hero_telemetry
     <<: *runtime
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=telemetry]
   velocity-smoother:
+    container_name: ranger_hero_velocity-smoother
     <<: *runtime
     profiles: [ackermann]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=velocity-smoother]
   command-guard:
+    container_name: ranger_hero_command-guard
     <<: *runtime
     profiles: [ackermann]
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=command-guard]
   preflight:
+    container_name: ranger_hero_preflight
     <<: *runtime
     profiles: [tools]
     restart: "no"

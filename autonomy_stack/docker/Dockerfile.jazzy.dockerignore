@@ -28,3 +28,6 @@
 **/logs/
 **/maps/
 **/dist/
+**/ackermann_report_*
+**/update_backups/
+**/.update.*/

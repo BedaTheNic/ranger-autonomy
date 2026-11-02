@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Limited commissioning gateway. Starts disarmed; requires exclusive /cmd_vel ownership."""
+"""Low-speed navigation gateway. Starts disarmed; reports other /cmd_vel publishers."""
 import json
 import math
 import os
@@ -31,14 +31,13 @@ class DriveGuard(Node):
         self.max_linear=float(os.environ.get('DRIVE_MAX_LINEAR','0.05'))
         self.max_angular=float(os.environ.get('DRIVE_MAX_ANGULAR','0.10'))
         self.command_timeout=float(os.environ.get('DRIVE_COMMAND_TIMEOUT','0.30'))
-        self.arm_duration=float(os.environ.get('DRIVE_ARM_SECONDS','60'))
         if not all(math.isfinite(v) and v>0 for v in
-                   (self.max_linear,self.max_angular,self.command_timeout,self.arm_duration)):
+                   (self.max_linear,self.max_angular,self.command_timeout)):
             raise ValueError('Drive limits/timeouts must be positive and finite')
-        if self.max_linear>.10 or self.max_angular>.20 or self.arm_duration>120:
-            raise ValueError('Commissioning caps: 0.10 m/s, 0.20 rad/s and 120 seconds')
+        if self.max_linear>.10 or self.max_angular>.20:
+            raise ValueError('Commissioning caps: 0.10 m/s and 0.20 rad/s')
         self.started=time.monotonic();self.last_graph=0;self.graph_ready_since=0
-        self.armed=False;self.stopping=False;self.arm_until=0;self.arm_stamp=0
+        self.armed=False;self.stopping=False;self.arm_stamp=0
         self.goal_key=None;self.command=None;self.command_received=0
         self.odom=None;self.odom_received=0;self.system=None;self.system_received=0
         self.joints=None;self.joints_received=0;self.controller_active=False
@@ -129,7 +128,7 @@ class DriveGuard(Node):
         self.foreign_publishers=[p.node_namespace.rstrip('/')+'/'+p.node_name
                                  for p in publishers if not own(p)]
         self.last_graph=now
-        if len(publishers)==1 and own(publishers[0]):
+        if any(own(p) for p in publishers):
             if not self.graph_ready_since:self.graph_ready_since=now
         else:self.graph_ready_since=0
         inputs=self.get_publishers_info_by_topic('/cmd_vel_nav')
@@ -151,9 +150,8 @@ class DriveGuard(Node):
     def blocked_reason(self,arming=False):
         now=time.monotonic()
         if self.stopping:return 'STOPPING'
-        if self.foreign_publishers:return 'OTHER_CMD_VEL_PUBLISHERS: '+', '.join(self.foreign_publishers)
         if not self.graph_ready_since or now-self.graph_ready_since<2 or now-self.last_graph>.6:
-            return 'WAITING_FOR_EXCLUSIVE_CMD_VEL_DISCOVERY'
+            return 'WAITING_FOR_CMD_VEL_DISCOVERY'
         if self.input_source_issue:return self.input_source_issue
         if not self.controller_active or now-self.controller_stamp>1.5:return 'CONTROLLER_NOT_ACTIVE'
         if not self.plugin or now-self.parameters_stamp>1.5 or self.sim_time:return 'CONTROLLER_CONFIGURATION_UNAVAILABLE'
@@ -179,14 +177,14 @@ class DriveGuard(Node):
         if not request.data:
             self.disarm('USER_DISABLED');response.success=True;response.message='DISARMED';return response
         if self.armed:
-            response.success=False;response.message='Already armed; disable before starting another timed test';return response
+            response.success=False;response.message='Already armed; use disarm to disable the gateway';return response
         reason=self.blocked_reason(arming=True)
         if reason:
             response.success=False;response.message=reason;self.publish_status(reason);return response
-        self.armed=True;self.arm_until=time.monotonic()+self.arm_duration
+        self.armed=True
         self.arm_stamp=self.get_clock().now().nanoseconds
         self.goal_key=None;self.command=None;self.command_received=0
-        response.success=True;response.message='ARMED: send a NEW Nav2 Goal; automatic disarm after '+str(self.arm_duration)+' seconds'
+        response.success=True;response.message='ARMED: send a NEW Nav2 Goal; no elapsed-time disarm'
         self.publish_status('ARMED_WAITING_FOR_NEW_GOAL');return response
 
     def disarm(self,reason):
@@ -210,7 +208,6 @@ class DriveGuard(Node):
             self.publish_status(reason or 'READY_DISARMED');return
         if reason:self.disarm(reason);return
         now=time.monotonic()
-        if now>=self.arm_until:self.disarm('ARM_TIME_EXPIRED');return
         if self.command_received and now-self.command_received>self.command_timeout:
             self.disarm('NAVIGATION_COMMAND_TIMEOUT');return
         output=Twist()

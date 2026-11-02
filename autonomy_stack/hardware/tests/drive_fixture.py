@@ -105,11 +105,13 @@ try:
     assert all(abs(v.linear.x)<1e-9 for _,v in outputs[previous:]),'Old goal must not resume after rearm'
     foreign=rclpy.create_node('teleop_twist_keyboard');executor.add_node(foreign)
     foreign_pub=foreign.create_publisher(Twist,'/cmd_vel',10)
-    wait(lambda:status[-1]['reason'].startswith('OTHER_CMD_VEL_PUBLISHERS'),seconds=3)
-    response=arm();assert not response.success and 'OTHER_CMD_VEL_PUBLISHERS' in response.message
+    wait(lambda:'/teleop_twist_keyboard' in status[-1]['foreign_publishers'],seconds=3)
+    assert status[-1]['armed'],'A second /cmd_vel publisher must not disarm the gateway'
+    assert arm(False).success
+    assert arm().success,'A second /cmd_vel publisher must not block arming'
     foreign.destroy_publisher(foreign_pub);executor.remove_node(foreign);foreign.destroy_node()
+    assert arm(False).success
     wait(lambda:status[-1]['reason']=='READY_DISARMED')
-
     assert arm().success
     system.vehicle_state=SystemState.VEHICLE_STATE_ESTOP
     wait(lambda:status[-1]['reason']=='BASE_FAULT_OR_ESTOP',seconds=2)
@@ -123,7 +125,8 @@ try:
     response=arm();assert not response.success and response.message=='MEASURED_STEERING_MISSING'
     print(json.dumps(dict(passed=True,physical_robot=False,
         checks=['disarmed startup','ignore pre-arm goal','speed cap preserves curvature',
-                'command timeout stops and disarms','rearm ignores old goal','other publishers block',
+                'command timeout stops and disarms','rearm ignores old goal','other publishers allowed',
+                'no elapsed-time disarm (obsolete DRIVE_ARM_SECONDS ignored)',
                 'E-stop stops','stale odometry blocks','adaptive requires steering']),indent=2),flush=True)
 finally:
     base.destroy_node();controller.destroy_node();executor.shutdown()

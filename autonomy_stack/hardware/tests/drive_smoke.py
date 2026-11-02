@@ -19,7 +19,8 @@ def main():
     common=dict(image=args.image,init=True,entrypoint=['/opt/autonomy/entrypoint.sh'],
         environment=dict(ROS_DOMAIN_ID='211',RMW_IMPLEMENTATION='rmw_fastrtps_cpp',
                          FASTDDS_BUILTIN_TRANSPORTS='UDPv4',ROS_AUTOMATIC_DISCOVERY_RANGE='SUBNET',
-                         HARDWARE_MODE='true',RANGER_LOG_ROOT='/logs',RANGER_DEPLOYMENT_ID='drive-test'),
+                         HARDWARE_MODE='true',RANGER_LOG_ROOT='/logs',RANGER_DEPLOYMENT_ID='drive-test',
+                         DRIVE_ARM_SECONDS='0.1'),
         networks=['isolated'],volumes=[str(output/'logs')+':/logs'],stop_signal='SIGINT',stop_grace_period='10s')
     spec=dict(name='ranger-drive-test-'+str(os.getpid()),networks={'isolated':{'internal':True}},services={
         'guard':dict(common,command=['python3','/tmp/drive_guard.py'],
