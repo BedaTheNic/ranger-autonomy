@@ -81,6 +81,29 @@ kutovi `fl_steering_wheel`, `fr_steering_wheel`, `rl_steering_wheel`,
 Sama prisutnost `/joint_states` nije dovoljna: poruke mogu sadržavati samo
 zglobove Kinove. Nije dodana zamjena mjerenja procijenjenim kutovima iz naredbi.
 
+Provjera na robotu potvrdila je prijem svih senzora i traženih TF veza iz našeg
+kontejnera. Jedina neuspjela stavka bila je izmjerena povratna informacija
+upravljanja: `/joint_states` sadrži Kinovu. Driver je konfiguriran za
+`ranger_mini_v3` i objavljuje `/actuator_state`; svih osam zapisa u jednom
+uzorku ponavlja iste vrijednosti. To samo po sebi, dok robot miruje, ne dokazuje
+grešku drivera niti potvrđuje četiri neovisna kuta.
+
+Za pasivan pregled izvora postojećeg drivera i CAN feedbacka pokreni na hostu:
+
+```bash
+docker exec -i ranger_hero_jazzy python3 - < inspect_drive.py > ranger-drive-details.json
+```
+
+`inspect_drive.py` radi unutar već pokrenutog kontejnera, koristi Pythonovu
+standardnu biblioteku i ne treba ROS setup. Čita samo odabrane C++ datoteke,
+putanje aktivnog drivera i do 8 sekundi standardnih CAN poruka `0x200..0x2ff`
+na postojećem `can0`. Ne piše u taj kontejner, ne mijenja CAN sučelje, ne
+šalje naredbe, ne pokreće drugi driver i ne dekodira pretpostavljeni redoslijed
+kotača. Nedostupan izvor ili CAN pristup ostaje zabilježen u JSON-u. Pregled
+izvora na disku ne potvrđuje da je upravo iz njega izgrađen aktivni binary.
+Skripta se može preuzeti zasebno iz ovog direktorija bez nove verzije imagea;
+stara arhiva `jazzy-r3` još je ne sadrži.
+
 Nav2 izlaz ostaje `/cmd_vel_nav`. Za fizičku vožnju još treba povezati izbor
 izvora naredbi, timeout i zaustavljanje s postojećim pogonom, provjeriti
 izmjerenu povratnu informaciju kotača i stvarni footprint uključujući opremu.

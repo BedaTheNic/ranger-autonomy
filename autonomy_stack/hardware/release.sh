@@ -53,7 +53,7 @@ case "$action" in
     mkdir -p "$stage/ranger-hardware/maps" "$stage/ranger-hardware/logs"
     cp -- "$hardware_dir/compose.yaml" "$hardware_dir/.env.example" \
       "$hardware_dir/README.md" "$hardware_dir/robot-contract.yaml" \
-      "$hardware_dir/robot.sh" "$stage/ranger-hardware/"
+      "$hardware_dir/robot.sh" "$hardware_dir/inspect_drive.py" "$stage/ranger-hardware/"
     # Robot preset only; registry credentials remain in the host's Docker login.
     cp -- "$hardware_dir/.env.example" "$stage/ranger-hardware/.env"
     if [[ -n "${DEPLOY_IMAGE:-}" ]]; then
