@@ -69,6 +69,15 @@ commands:
   existing_publishers: [/teleop_twist_keyboard, /spray_executor_node, /kinova_state_machine_node]
   arbitration_and_timeout_verified: false
   connect_autonomy_to_base: false
+  optional_commissioning_gateway:
+    compose: compose.drive.yaml
+    starts_disarmed: true
+    max_linear_mps: 0.05
+    max_angular_radps: 0.10
+    command_timeout_s: 0.30
+    arm_duration_s: 60
+    requires_exclusive_cmd_vel: true
+    physical_drive_validated: false
 navigation:
   default_profile: adaptive
   source_packages: [ranger_nav_plugins, ranger_logging]
@@ -94,6 +103,10 @@ steering_feedback:
   actuator_state_topic: /actuator_state
   actuator_state_type: ranger_msgs/msg/ActuatorStateArray
   actuator_state_publisher: /ranger_base_node
+  alternative_topic_observed: /ranger/actuator_state
+  alternative_publisher_observed: /ranger_actuator_state_node
+  alternative_sample_has_distinct_actuator_data: true
+  alternative_angle_sample_all_zero: true
   driver_source_path_observed: /root/ranger_ws/src/ranger_ros2/ranger_base/src/ranger_messenger.cpp
   driver_source_sha256_observed: 4e0ed517c8ba29cd0c40e3e0568d3eeffefa53747b3c6a208c71266675fcdf6d
   source_repeats_angle5_and_actuator0: true

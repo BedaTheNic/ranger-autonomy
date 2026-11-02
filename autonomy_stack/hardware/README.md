@@ -276,6 +276,60 @@ Izlaz mu je `/autonomy/scan`; u `.env` uskladi `OBSTACLE_SCAN_TOPIC` i/ili
 
 ## Logovi i provjere
 
+### Ograničena prva vožnja
+
+`compose.drive.yaml`, `drive.sh` i `drive_guard.py` koriste postojeći Jazzy image.
+Skripta se montira read-only; na robotu nema builda. Zasebni projekt
+`ranger-drive` povezuje `/cmd_vel_nav` s `/cmd_vel`. Pokreće se **disarmed**,
+ne objavljuje brzine dok nije uključen i ne restarta se automatski.
+
+Za prvi test koristi `NAV_PROFILE=holonomic`, pa ponovno `bash robot.sh external`.
+Time se bira postojeći ProgressDWB profil, bez izmjerenih kutova; to nije
+potvrda Ackermann/adaptivnog upravljanja. Glavni profil ostaje dostupan kao
+`NAV_PROFILE=adaptive` nakon integracije provjerenih kutova.
+
+```bash
+bash drive.sh up
+# Pričekaj nekoliko sekundi za ROS discovery i aktivaciju kontrolera.
+bash drive.sh arm
+```
+
+`arm` mora vratiti `success: true`. Nakon toga u RViz-u zadaj **NOVI Nav2 Goal**.
+Ranije prihvaćeni goalovi ne uključuju pogon. **2D Goal Pose** je i dalje samo
+preview. Za prvu probu odaberi slobodan cilj blizu robota, uz spremljenu ruku i
+dostupan fizički E-stop. Brzina je ograničena na 0.05 m/s i 0.10 rad/s; skaliranje
+čuva smjer i zakrivljenost naredbe. Odabrani test traje najviše 60 sekundi.
+
+Most odbija uključivanje ako drugi čvorovi objavljuju na `/cmd_vel`, uključujući
+teleop/spray/Kinova aplikacije. Njih treba zaustaviti kroz postojeći startup,
+uz zadržavanje baze, senzora i SLAM-a; skripta ih ne ubija. Provjerava se i
+poznati skup izdavača `/cmd_vel_nav`, aktivni kontroler, realno vrijeme,
+svježa odometrija te `/system_state` bez greške/E-stopa i u CAN načinu.
+Adaptivni/Ackermann kontroleri dodatno zahtijevaju svježe četiri steering
+JointState vrijednosti. Timeout navigacijskih naredbi od 0.30 s zaustavlja i
+isključuje most. Ostali izvori blokade vide se u odgovoru `arm` i logovima.
+
+Zaustavljanje i prekid cilja:
+
+```bash
+bash drive.sh disarm
+bash robot.sh ros bt-navigator ros2 service call \
+  /navigate_to_pose/_action/cancel_goal action_msgs/srv/CancelGoal "{}"
+bash drive.sh down
+```
+
+`/ranger/actuator_state` se u mostu pasivno snima kao `ACTUATOR_SAMPLE` (5 Hz),
+bez resetiranja kutova ili pretvaranja encoder countova u pretpostavljene kutove.
+Uzorci i status mosta idu kroz postojeći logger u `logs/drive-test`.
+ROS discovery provjere nisu DDS autentifikacija. Softverska provjera mosta u
+izoliranoj Docker mreži nije provjera fizičkog E-stopa ni firmware watchdog-a
+u slučaju gubitka napajanja/SIGKILL-a procesa na robotu.
+
+Test: `python3 autonomy_stack/hardware/tests/drive_smoke.py --image IMAGE` iz
+korijena repozitorija. Koristi sintetičke bazu i kontroler u internoj mreži,
+uključujući blokadu starih goalova, drugih izdavača, timeout, E-stop stanje,
+zastarjelu odometriju i nedostatak steeringa u adaptivnom profilu.
+
 ### Windows CMD: karta i cilj u pregledniku
 
 RViz/noVNC radi u zasebnom amd64 imageu

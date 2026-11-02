@@ -1,0 +1,31 @@
+name: ranger-drive
+services:
+  drive-guard:
+    image: ${AUTONOMY_IMAGE:-ghcr.io/bedathenic/ranger-autonomy:jazzy-r3}
+    network_mode: host
+    ipc: private
+    init: true
+    restart: "no"
+    stop_signal: SIGINT
+    stop_grace_period: 10s
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-9}
+      ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      FASTDDS_BUILTIN_TRANSPORTS: UDPv4
+      HARDWARE_MODE: "true"
+      STEERING_FEEDBACK_TOPIC: ${STEERING_FEEDBACK_TOPIC:-/joint_states}
+      RANGER_LOG_ROOT: /logs
+      RANGER_LOG_SERVICE: drive-guard
+      RANGER_DEPLOYMENT_ID: drive-test
+      DRIVE_MAX_LINEAR: "0.05"
+      DRIVE_MAX_ANGULAR: "0.10"
+      DRIVE_COMMAND_TIMEOUT: "0.30"
+      DRIVE_ARM_SECONDS: "60"
+    command: [python3, /opt/autonomy/drive_guard.py]
+    volumes:
+      - ./drive_guard.py:/opt/autonomy/drive_guard.py:ro
+      - ./logs:/logs
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
