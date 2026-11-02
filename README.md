@@ -10,10 +10,10 @@ Adaptive Ranger Mini navigation and structured logging, split into separate ROS 
 
 ## Deploy on the robot
 
-After the `jazzy-r2` workflow has completed, download the release deployment bundle:
+After the `jazzy-r3` workflow has completed, download the release deployment bundle:
 
 ```bash
-curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r2/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
+curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r3/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
 tar -xzf ranger-hardware-deploy.tar.gz
 cd ranger-hardware
 bash robot.sh pull
@@ -22,7 +22,7 @@ bash robot.sh check
 ```
 
 The bundle includes a non-secret `.env` preset. The image is
-`ghcr.io/bedathenic/ranger-autonomy:jazzy-r2`, with amd64 and arm64 variants.
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r3`, for the robot’s amd64 architecture.
 For a private GHCR package, first run `docker login ghcr.io -u BedaTheNic` on the robot.
 No source checkout or build is needed on the robot.
 
@@ -43,7 +43,7 @@ validate physical navigation.
 ## Build and publish
 
 [Complete build/deployment instructions](autonomy_stack/hardware/README.md)
-cover local Docker builds, GHCR/Docker Hub/private registries and both CPU architectures.
+cover local Docker builds, GHCR/Docker Hub/private registries and the robot’s amd64 architecture.
 The [GitHub Actions workflow](.github/workflows/publish.yaml) verifies the original
 navigation/logging regressions and real inter-container planning/logging before
 publishing images and a deployment archive. Push a `jazzy-*` tag or run it manually.
@@ -56,5 +56,4 @@ publishing images and a deployment archive. Push a `jazzy-*` tag or run it manua
 
 Canonical package/config inputs are embedded in each image's
 `/opt/autonomy/source-manifest.json`. Local maps, logs and credentials are not
-committed. Initial validation covers amd64 synthetic inputs; native arm64 runtime
-and the real robot remain separate validation steps.
+committed. Initial validation covers amd64 synthetic inputs; the real robot remains a separate validation step.

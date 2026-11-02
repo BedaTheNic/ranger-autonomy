@@ -6,7 +6,7 @@ on:
       tag:
         description: Image release tag
         required: true
-        default: jazzy-r2
+        default: jazzy-r3
   push:
     tags: ['jazzy-*']
   pull_request:
@@ -14,20 +14,32 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - name: Build the robot's amd64 image
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: autonomy_stack/docker/Dockerfile.jazzy
           target: runtime
+          platforms: linux/amd64
           load: true
           tags: ranger-autonomy:ci
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=verify
           cache-to: type=gha,mode=max,scope=verify
       - name: Original navigation and logger regression tests
@@ -41,64 +53,40 @@ jobs:
         with:
           name: ranger-validation
           path: /tmp/ranger-ci-validation
-      - name: Prepare robot deployment bundle
-        env:
-          INPUT_TAG: ${{ inputs.tag }}
-        shell: bash
-        run: |
-          tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
-          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then tag=ci; fi
-          export DEPLOY_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:$tag"
-          bash autonomy_stack/hardware/release.sh bundle
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ranger-hardware-deploy
-          path: autonomy_stack/hardware/dist/ranger-hardware-deploy.tar.gz
-
-  publish:
-    if: github.event_name != 'pull_request'
-    needs: verify
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v5
-      - name: Image reference
+      - name: Image reference and robot deployment bundle
         id: image
         env:
           INPUT_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then tag=ci; fi
           [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || exit 2
-          echo "reference=ghcr.io/${GITHUB_REPOSITORY,,}:$tag" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$tag"
+          echo "reference=$image" >> "$GITHUB_OUTPUT"
+          DEPLOY_IMAGE="$image" bash autonomy_stack/hardware/release.sh bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ranger-hardware-deploy
+          path: autonomy_stack/hardware/dist/ranger-hardware-deploy.tar.gz
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and publish both architectures
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: autonomy_stack/docker/Dockerfile.jazzy
-          target: runtime
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.image.outputs.reference }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=publish
-          cache-to: type=gha,mode=max,scope=publish
+      - name: Publish the exact amd64 image that passed the tests
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          docker tag ranger-autonomy:ci "$IMAGE"
+          docker push "$IMAGE"
 
   release:
     if: github.event_name != 'pull_request'
-    needs: [verify, publish]
+    needs: verify
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -119,7 +107,7 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}:$tag"
           printf '%s\n' \
             "Ranger Mini ROS 2 Jazzy adaptive navigation with structured logging." \
-            "" "Container image: \`$image\` (linux/amd64 and linux/arm64)." \
+            "" "Container image: \`$image\` (linux/amd64, matching the robot)." \
             "" "Download and extract ranger-hardware-deploy.tar.gz on the robot Docker host." \
             "The archive includes a non-secret .env preset for this release, Compose and robot.sh." \
             "" '```bash' 'bash robot.sh pull' 'bash robot.sh external' 'bash robot.sh check' '```' \

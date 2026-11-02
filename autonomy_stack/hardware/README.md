@@ -113,36 +113,27 @@ Host treba Docker Engine i Buildx; ROS instalacija na hostu nije potrebna.
 Za native amd64 lokalni build:
 
 ```bash
-bash release.sh build ranger-autonomy:jazzy-r2
+bash release.sh build ranger-autonomy:jazzy-r3
 ```
 
-Za obje arhitekture na jednom Linux build računalu, ako builder/emulacija još
-nisu postavljeni:
-
-```bash
-docker run --privileged --rm tonistiigi/binfmt --install amd64,arm64
-docker buildx create --name ranger-multiarch --driver docker-container --use
-docker buildx inspect --bootstrap
-```
-
-Ako builder postoji, koristi `docker buildx use ranger-multiarch`. Native x86 i
-ARM runneri mogu zamijeniti emulaciju. ARM C++ build pod QEMU može biti spor.
+Gradi se samo `linux/amd64`, prema dijagnostici robota. Na ovom amd64
+računalu nisu potrebni QEMU ni ARM build.
 
 Prijavi se u registry (pri upitu za lozinku koristi svoj GHCR token):
 
 ```bash
 docker login ghcr.io -u BedaTheNic
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r2
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r3
 ```
 
-Zadano se grade `linux/amd64,linux/arm64` i objavljuje zajednički manifest.
-Za drugi registry promijeni referencu, npr. `docker.io/USER/ranger-autonomy:jazzy-r2`
-ili `registry.example.com/TEAM/ranger-autonomy:jazzy-r2`, i prijavi se u njega.
+Zadano se gradi i objavljuje samo `linux/amd64`, arhitektura stvarnog robota.
+Za drugi registry promijeni referencu, npr. `docker.io/USER/ranger-autonomy:jazzy-r3`
+ili `registry.example.com/TEAM/ranger-autonomy:jazzy-r3`, i prijavi se u njega.
 Više tagova/registryja može se zadati nakon platformi:
 
 ```bash
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r2 \
-  linux/amd64,linux/arm64 docker.io/USER/ranger-autonomy:jazzy-r2
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r3 \
+  linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r3
 ```
 
 Build kontekst je nadređeni direktorij s `autonomy_stack`, `ugv_sim` i
@@ -151,16 +142,15 @@ Build kontekst je nadređeni direktorij s `autonomy_stack`, `ugv_sim` i
 ### Opcija B: GitHub Actions gradi i objavljuje
 
 Izvezeni repo već sadrži `.github/workflows/publish.yaml`. Na GitHubu otvori
-Actions → Verify and publish Ranger autonomy → Run workflow, tag `jazzy-r2`.
-Alternativno objavi Git tag `jazzy-r2`.
+Actions → Verify and publish Ranger autonomy → Run workflow, tag `jazzy-r3`.
+Alternativno objavi Git tag `jazzy-r3`.
 
 Workflow prvo gradi amd64 image, pokreće izvorne C++/logger regresije i izolirani
-adaptivni test planiranja/logiranja. Nakon prolaza gradi obje arhitekture i
-objavljuje u GHCR. Koristi repo `GITHUB_TOKEN` s `packages: write`; token se ne
+adaptivni test planiranja/logiranja. Nakon prolaza objavljuje isti provjereni amd64 image u GHCR, bez ponovnog builda. Koristi repo `GITHUB_TOKEN` s `packages: write`; token se ne
 sprema u izvorni kod. Repo/org postavke moraju dopuštati Actions i taj pristup
 paketima. Deployment arhiva dostupna je kao workflow artifact
 `ranger-hardware-deploy` i, nakon objave imageova, kao GitHub Release asset.
-Arhiva sadrži i ne-tajni `.env` preset s image referencom tog releasea. ARM build u ovom workflowu još nema native runtime test.
+Arhiva sadrži i ne-tajni `.env` preset s image referencom tog releasea. Ovaj workflow ne gradi ARM varijantu.
 
 ## Robot: samo pull i pokretanje
 
@@ -182,7 +172,7 @@ cd ranger-hardware
 bash robot.sh pull
 ```
 
-Docker sam bira odgovarajuću arhitekturu. Na robotu nisu potrebni izvorni kod,
+Image je izgrađen za robotovu amd64 arhitekturu. Na robotu nisu potrebni izvorni kod,
 colcon, Buildx ni build imagea.
 
 Ako želiš zadržati već pokrenuti SLAM s robota:
@@ -257,7 +247,7 @@ ponovi `pull` i odabrani način pokretanja.
 
 Lokalno je provjeren amd64 build/start/planiranje i strukturirano logiranje.
 Fizička navigacija, mapiranje povratne informacije kotača, izlaz prema pogonu,
-ARM runtime i registry pull zahtijevaju zasebnu provjeru.
+Registry pull i stvarni robot zahtijevaju zasebnu provjeru.
 
 Izvori:
 - https://docs.docker.com/build/ci/github-actions/multi-platform/

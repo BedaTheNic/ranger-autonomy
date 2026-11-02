@@ -5,7 +5,7 @@ robot:
   generation: null
   ros_distribution: jazzy
   architecture_observed: amd64
-  build_platforms: [linux/amd64, linux/arm64]
+  build_platforms: [linux/amd64]
   ros_domain_id: 9
   rmw_implementation_observed: null
   base_frame: ranger_base_link

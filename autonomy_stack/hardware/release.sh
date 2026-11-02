@@ -9,18 +9,18 @@ usage() {
 Usage:
   bash release.sh build IMAGE [PLATFORM]       # local image; default native platform
   bash release.sh publish IMAGE [PLATFORMS] [EXTRA_IMAGE ...]
-                                             # default linux/amd64,linux/arm64
+                                             # default linux/amd64 (robot architecture)
   bash release.sh bundle [OUTPUT_DIRECTORY]   # robot deployment files, no source/build
   bash release.sh source [OUTPUT_DIRECTORY]   # independent GitHub-ready source tree + archive
 
 Examples:
-  bash release.sh build ranger-autonomy:jazzy-r1 linux/amd64
-  bash release.sh publish docker.io/USER/ranger-autonomy:jazzy-r1
-  bash release.sh publish ghcr.io/ORG/ranger-autonomy:jazzy-r1 linux/amd64,linux/arm64 registry.example.com/TEAM/ranger-autonomy:jazzy-r1
+  bash release.sh build ranger-autonomy:jazzy-r3 linux/amd64
+  bash release.sh publish docker.io/USER/ranger-autonomy:jazzy-r3
+  bash release.sh publish ghcr.io/ORG/ranger-autonomy:jazzy-r3 linux/amd64 registry.example.com/TEAM/ranger-autonomy:jazzy-r3
 
 Authenticate to each registry with docker login before publish.
 BUILD_JOBS controls compiler parallelism per platform (default 2).
-Multi-platform builds require a buildx builder with both native platforms or QEMU.
+The robot target is linux/amd64; no ARM image or QEMU is needed on this computer.
 EOF
 }
 action="${1:-help}"
@@ -29,15 +29,10 @@ case "$action" in
     [[ $# -ge 2 ]] || { usage; exit 2; }
     image="$2"
     if [[ "$action" == publish ]]; then
-      platforms="${3:-linux/amd64,linux/arm64}"
+      platforms="${3:-linux/amd64}"
       output=(--push)
     else
-      case "$(uname -m)" in
-        x86_64) native_platform=linux/amd64 ;;
-        aarch64|arm64) native_platform=linux/arm64 ;;
-        *) echo 'Specify PLATFORM explicitly for this build host.' >&2; exit 2 ;;
-      esac
-      platforms="${3:-$native_platform}"
+      platforms="${3:-linux/amd64}"
       [[ "$platforms" != *,* ]] || { echo 'Use publish for a multi-platform manifest.' >&2; exit 2; }
       output=(--load)
     fi
