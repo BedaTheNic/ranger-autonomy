@@ -3,7 +3,7 @@ name: ranger-hardware
 x-runtime: &runtime
   image: ${AUTONOMY_IMAGE:?Set AUTONOMY_IMAGE to the published Jazzy image in .env}
   network_mode: host
-  # Also allows Fast DDS shared-memory transport with a host-IPC driver container.
+  # Fast DDS uses UDP by default: the existing ranger_hero_jazzy has private IPC.
   ipc: host
   init: true
   restart: unless-stopped
@@ -14,6 +14,7 @@ x-runtime: &runtime
     ROS_LOCALHOST_ONLY: "0"
     ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
     RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    FASTDDS_BUILTIN_TRANSPORTS: ${FASTDDS_BUILTIN_TRANSPORTS:-UDPv4}
     USE_SIM_TIME: "false"
     HARDWARE_MODE: "true"
     AUTONOMY_CONFIG: /opt/autonomy/hardware/config

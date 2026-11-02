@@ -13,6 +13,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='ranger-autonomy:ci')
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--rmw', default='rmw_fastrtps_cpp',
+                        choices=['rmw_cyclonedds_cpp', 'rmw_fastrtps_cpp'])
     args = parser.parse_args()
     hardware = Path(__file__).resolve().parents[1]
     workspace = hardware.parents[1]
@@ -25,7 +27,7 @@ def main():
     services = {}
     for name, service in json.loads(raw)['services'].items():
         environment = dict(service['environment'])
-        environment.update(ROS_DOMAIN_ID='211', RMW_IMPLEMENTATION='rmw_cyclonedds_cpp',
+        environment.update(ROS_DOMAIN_ID='211', RMW_IMPLEMENTATION=args.rmw,
                            NAV_PROFILE='adaptive', OBSTACLE_SCAN_TOPIC='/autonomy/scan',
                            RANGER_DEPLOYMENT_ID='compose-test', RANGER_LOG_MAX_BYTES='65536')
         services[name] = dict(image=args.image, command=service['command'], init=True,
@@ -33,7 +35,8 @@ def main():
                              networks=['isolated'], stop_signal='SIGINT', stop_grace_period='25s')
     services['fixture'] = dict(image=args.image, init=True,
         command=['python3', '/tmp/fixture.py', 'adaptive', '--external'],
-        environment=dict(ROS_DOMAIN_ID='211', RMW_IMPLEMENTATION='rmw_cyclonedds_cpp'),
+        environment=dict(ROS_DOMAIN_ID='211', RMW_IMPLEMENTATION=args.rmw,
+                         FASTDDS_BUILTIN_TRANSPORTS='UDPv4'),
         volumes=[str(hardware/'tests/image_smoke.py')+':/tmp/fixture.py:ro'], networks=['isolated'])
     project = 'ranger-test-'+str(os.getpid())
     spec = dict(name=project, services=services, networks={'isolated': {'internal': True}})
@@ -66,6 +69,7 @@ def main():
         summary = dict(passed=True, image=args.image, service_exit_codes=statuses,
                        parts=len(files), records=len(records_list), max_part_bytes=65536,
                        events=sorted(events), ros_domain=211, network='internal Docker bridge',
+                       rmw=args.rmw, fastdds_builtin_transports='UDPv4',
                        physical_robot=False)
         (output/'summary.json').write_text(json.dumps(summary, indent=2))
         print(json.dumps(summary, indent=2))

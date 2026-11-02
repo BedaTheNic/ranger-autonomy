@@ -58,10 +58,22 @@ Dijagnostika `robot_diagnostics_20261102_104903__0bzdr18.tar.gz` potvrđuje:
   teleop, spray_executor_node i kinova_state_machine_node.
 
 Costmape koriste `/scan_obstacles` (`range_min≈0.4 m`); lokalizacija `/scan`
-(`range_min=1.0 m`). Ne objavljujemo još jedan LiDAR TF. RMW nije izričito
-naveden u arhivi; zadani Fast DDS treba uskladiti s postojećim kontejnerom.
-Host mreža i IPC u Composeu podržavaju komunikaciju s Linux robotovim hostom;
-ne mijenjaju mrežne postavke postojećeg driver kontejnera.
+(`range_min=1.0 m`). Ne objavljujemo još jedan LiDAR TF.
+
+Naknadna provjera procesa na robotu potvrdila je domenu 9 i stvarno učitanu
+biblioteku `librmw_fastrtps_cpp.so` za bazu i Livox. Postojeći kontejner
+`ranger_hero_jazzy` koristi `Network=host`, `IPC=private`. Naši Fast DDS procesi
+zato zadano koriste `FASTDDS_BUILTIN_TRANSPORTS=UDPv4`; postojeći kontejner se
+ne mora ponovno stvarati ili gasiti. Varijabla je u zajedničkom Compose
+okruženju svih naših servisa. Sam dodatan zapis u `.env` bez prosljeđivanja kroz
+Compose ne bi bio dovoljan. Ako koristiš vlastiti Fast DDS XML koji isključuje
+builtin transporte, provjeri i njegovu konfiguraciju.
+
+Deployment arhiva `jazzy-r3` objavljena je prije ove provjere IPC-a. Za nju je
+dovoljno preuzeti aktualni `autonomy_stack/hardware/compose.yaml` iz repozitorija
+u lokalni deployment direktorij. Image ostaje `jazzy-r3`; promjena je samo u
+Compose okruženju. Pokrenute naše kontejnere treba ponovno stvoriti naredbom
+`bash robot.sh external` (ili odabranim mapping/localization načinom).
 
 **Adaptivni profil je zadan.** Za Ackermann dio potrebni su svježi izmjereni
 kutovi `fl_steering_wheel`, `fr_steering_wheel`, `rl_steering_wheel`,

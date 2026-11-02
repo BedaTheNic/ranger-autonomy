@@ -32,7 +32,9 @@ For a saved map, use `bash robot.sh localization` with map assets in `maps/`.
 
 The robot preset uses ROS domain 9, `ranger_base_link`, `/odom`, `/livox/lidar`,
 `/livox/imu`, `/scan` and `/scan_obstacles`. Adaptive navigation is the default.
-The driver container must share compatible DDS/network settings.
+The confirmed driver container `ranger_hero_jazzy` uses host networking and private IPC.
+The current Compose config defaults our Fast DDS processes to UDPv4 for compatibility.
+The original jazzy-r3 deployment bundle needs this Compose-only update; no image rebuild is needed.
 
 **Physical driving is not yet integrated:** `/cmd_vel_nav` is separate from the
 robot's `/cmd_vel`, which already has other command publishers. Measured Ranger
