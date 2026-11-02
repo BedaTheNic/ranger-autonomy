@@ -1,0 +1,5 @@
+<library path="ranger_adaptive_planner">
+  <class type="ranger_nav_plugins::AdaptivePlanner" base_class_type="nav2_core::GlobalPlanner">
+    <description>Compare Smac Hybrid and omni Lattice routes using mode-aware travel time estimates.</description>
+  </class>
+</library>

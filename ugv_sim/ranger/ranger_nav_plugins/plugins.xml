@@ -1,0 +1,14 @@
+<library path="ranger_mode_critic">
+  <class type="ranger_nav_plugins::ModeConstraintCritic" base_class_type="dwb_core::TrajectoryCritic">
+    <description>Reject combined lateral/rotational motion and steering arcs below the configured radius.</description>
+  </class>
+  <class type="ranger_nav_plugins::MaxObstacleFootprintCritic" base_class_type="dwb_core::TrajectoryCritic">
+    <description>Reject footprint collisions and score the worst clearance along the entire trajectory.</description>
+  </class>
+  <class type="ranger_nav_plugins::PathTrackingCritic" base_class_type="dwb_core::TrajectoryCritic">
+    <description>Mean distance of the complete prediction to the reference path, preserving holonomic headings.</description>
+  </class>
+  <class type="ranger_nav_plugins::SteeringContinuityCritic" base_class_type="dwb_core::TrajectoryCritic">
+    <description>Soft preference for continuous wheel steering commands without suppressing initial alignment.</description>
+  </class>
+</library>

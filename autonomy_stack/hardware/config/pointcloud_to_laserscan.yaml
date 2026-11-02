@@ -1,0 +1,20 @@
+autonomy_pointcloud_to_laserscan:
+  ros__parameters:
+    use_sim_time: false
+    # Project in a body-aligned frame using the existing calibrated LiDAR TF.
+    target_frame: ranger_base_link
+    transform_tolerance: 0.1
+    # Heights are relative to ranger_base_link, NOT to the LiDAR or ground.
+    # Initial slice only: validate against actual mounting and obstacles.
+    min_height: 0.10
+    max_height: 1.50
+    angle_min: -3.141592653589793
+    angle_max: 3.141592653589793
+    angle_increment: 0.008726646259972
+    scan_time: 0.1
+    range_min: 0.3
+    range_max: 10.0
+    # MID360's non-repetitive scan can leave angular bins empty. Empty bins
+    # are not proof of free space; don't clear obstacles with synthetic rays.
+    use_inf: false
+    inf_epsilon: 1.0

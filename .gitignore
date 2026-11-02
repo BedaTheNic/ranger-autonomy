@@ -1,0 +1,9 @@
+.env
+**/__pycache__/
+**/*.pyc
+**/logs/
+**/maps/
+**/dist/
+**/build/
+**/install/
+**/log/

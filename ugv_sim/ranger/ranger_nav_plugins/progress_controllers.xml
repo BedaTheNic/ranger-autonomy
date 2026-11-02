@@ -1,0 +1,5 @@
+<library path="ranger_progress_dwb">
+  <class type="ranger_nav_plugins::ProgressDWBController" base_class_type="nav2_core::Controller">
+    <description>DWB with collision-checked progress assistance on the retained path.</description>
+  </class>
+</library>

@@ -1,0 +1,5 @@
+<library path="ranger_adaptive_controller">
+  <class type="ranger_nav_plugins::AdaptiveController" base_class_type="nav2_core::Controller">
+    <description>Radius and ETA based switching between constrained MPPI and holonomic DWB.</description>
+  </class>
+</library>

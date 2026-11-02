@@ -1,0 +1,41 @@
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence name="NewNavigationRequest">
+      <ClearNavigationPath path="{path}"/>
+      <RecoveryNode number_of_retries="3" name="NavigateRecovery">
+        <PipelineSequence name="FollowRetainedPath">
+          <!-- Check at 1 Hz; compute only when the retained path is unusable. -->
+          <RateController hz="1.0">
+            <RecoveryNode number_of_retries="1" name="ValidateOrComputePath">
+              <Sequence>
+                <Fallback name="ReuseOrPlan">
+                  <ReactiveSequence>
+                    <PathGoalUnchanged/>
+                    <IsPathValid path="{path}"/>
+                  </ReactiveSequence>
+                  <Sequence>
+                    <RememberPathGoal/>
+                    <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+                  </Sequence>
+                </Fallback>
+              </Sequence>
+              <ClearEntireCostmap service_name="global_costmap/clear_entirely_global_costmap"/>
+            </RecoveryNode>
+          </RateController>
+          <FollowPath path="{path}" controller_id="FollowPath" goal_checker_id="goal_checker"/>
+        </PipelineSequence>
+        <Sequence name="InvalidateUnfollowablePath">
+          <ClearNavigationPath path="{path}"/>
+          <ReactiveFallback>
+            <GoalUpdated/>
+            <Sequence>
+              <ClearEntireCostmap service_name="local_costmap/clear_entirely_local_costmap"/>
+              <ClearEntireCostmap service_name="global_costmap/clear_entirely_global_costmap"/>
+              <Wait wait_duration="3"/>
+            </Sequence>
+          </ReactiveFallback>
+        </Sequence>
+      </RecoveryNode>
+    </Sequence>
+  </BehaviorTree>
+</root>

@@ -1,0 +1,13 @@
+Ranger omni lattice is derived from Navigation2's Humble sample lattice:
+https://github.com/ros-navigation/navigation2/blob/humble/nav2_smac_planner/sample_primitives/5cm_resolution/0.5m_turning_radius/omni/output.json
+Navigation2 nav2_smac_planner: Apache License 2.0.
+
+In-place rotations and turns with radius at least 0.8 m are retained. The
+source sample's 0.50–0.69 m moving turns are excluded because they exceed the
+Ranger controller curvature limit. Translation primitives
+are replaced with shortest heading-aligned integer grid steps in both
+longitudinal and lateral directions. Regenerate with:
+python3 ranger_navigation_startup/generate_omni_lattice.py
+
+This control set is for the 0.05 m simulation costmap and Ranger Mini V2
+mode-constrained DWB controller. It does not calibrate physical robot limits.

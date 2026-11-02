@@ -1,0 +1,96 @@
+name: ranger-hardware
+
+x-runtime: &runtime
+  image: ${AUTONOMY_IMAGE:?Set AUTONOMY_IMAGE to the published Jazzy image in .env}
+  network_mode: host
+  # Also allows Fast DDS shared-memory transport with a host-IPC driver container.
+  ipc: host
+  init: true
+  restart: unless-stopped
+  stop_signal: SIGINT
+  stop_grace_period: 25s
+  environment:
+    ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-9}
+    ROS_LOCALHOST_ONLY: "0"
+    ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
+    RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    USE_SIM_TIME: "false"
+    HARDWARE_MODE: "true"
+    AUTONOMY_CONFIG: /opt/autonomy/hardware/config
+    LOCALIZATION_MODE: ${LOCALIZATION_MODE:-mapping}
+    MAP_FILE: ${MAP_FILE:-/maps/map.yaml}
+    NAV_PROFILE: ${NAV_PROFILE:-adaptive}
+    STEERING_FEEDBACK_TOPIC: ${STEERING_FEEDBACK_TOPIC:-/joint_states}
+    OBSTACLE_SCAN_TOPIC: ${OBSTACLE_SCAN_TOPIC:-/scan_obstacles}
+    LOCALIZATION_SCAN_TOPIC: ${LOCALIZATION_SCAN_TOPIC:-/scan}
+    ADAPTER_SCAN_TOPIC: ${ADAPTER_SCAN_TOPIC:-/autonomy/scan}
+    ROS_LOG_DIR: /logs
+    RANGER_LOG_ROOT: /logs
+    RANGER_LOG_MAX_BYTES: ${RANGER_LOG_MAX_BYTES:-20971520}
+    RANGER_LOG_SAMPLE_HZ: ${RANGER_LOG_SAMPLE_HZ:-5}
+    RANGER_DEPLOYMENT_ID: ${RANGER_DEPLOYMENT_ID:-manual}
+  volumes:
+    - ./maps:/maps
+    - ./logs:/logs
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  scan-adapter:
+    <<: *runtime
+    profiles: [scan-adapter]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=scan-adapter]
+  slam:
+    <<: *runtime
+    profiles: [mapping]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=slam]
+  slam-lifecycle:
+    <<: *runtime
+    profiles: [mapping]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=slam-lifecycle]
+  map-server:
+    <<: *runtime
+    profiles: [localization]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=map-server]
+  amcl:
+    <<: *runtime
+    profiles: [localization]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=amcl]
+  localization-lifecycle:
+    <<: *runtime
+    profiles: [localization]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=localization-lifecycle]
+  planner:
+    <<: *runtime
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=planner]
+  controller:
+    <<: *runtime
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=controller]
+  behaviors:
+    <<: *runtime
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=behaviors]
+  bt-navigator:
+    <<: *runtime
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=bt-navigator]
+  navigation-lifecycle:
+    <<: *runtime
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=navigation-lifecycle]
+  telemetry:
+    <<: *runtime
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=telemetry]
+  velocity-smoother:
+    <<: *runtime
+    profiles: [ackermann]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=velocity-smoother]
+  command-guard:
+    <<: *runtime
+    profiles: [ackermann]
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=command-guard]
+  preflight:
+    <<: *runtime
+    profiles: [tools]
+    restart: "no"
+    command: [python3, /opt/autonomy/hardware/preflight.py]

@@ -1,0 +1,14 @@
+project_logger:
+  ros__parameters:
+    use_sim_time: false
+    expect_clock: false
+    expect_odometry: true
+    expect_ekf: false
+    expect_map: true
+    expect_joint_states: true
+    base_frame: ranger_base_link
+    imu_topic: /livox/imu
+    lidar_topic: /livox/lidar
+    scan_topic: /scan
+    obstacle_scan_topic: /scan_obstacles
+    wheel_odometry_topic: /odom

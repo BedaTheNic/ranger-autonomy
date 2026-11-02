@@ -1,0 +1,154 @@
+# Mini V2 SIMULATION parameters; not calibrated hardware limits.
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    GridBased:
+      plugin: nav2_smac_planner/SmacPlannerHybrid
+      tolerance: 0.15
+      allow_unknown: false
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 1.0
+      smooth_path: true
+      cache_obstacle_heuristic: false
+      reverse_penalty: 1.5
+      change_penalty: 0.3
+      non_straight_penalty: 1.2
+      cost_penalty: 3.0
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 4.4
+      motion_model_for_search: REEDS_SHEPP
+      minimum_turning_radius: 1.1
+      angle_quantization_bins: 72
+      downsample_costmap: false
+      smoother:
+        max_iterations: 1000
+        w_smooth: 0.3
+        w_data: 0.3
+        tolerance: 1.0e-10
+        do_refinement: true
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    FollowPath:
+      plugin: ranger_nav_plugins::AckermannController
+      motion_model: Ackermann
+      time_steps: 60
+      model_dt: 0.1
+      batch_size: 1200
+      iteration_count: 3
+      vx_std: 0.08
+      vy_std: 0.0
+      wz_std: 0.08
+      vx_max: 0.2
+      vx_min: -0.15
+      vy_max: 0.0
+      wz_max: 0.25
+      temperature: 0.15
+      gamma: 0.015
+      prune_distance: 1.5
+      transform_tolerance: 0.3
+      visualize: true
+      TrajectoryVisualizer:
+        trajectory_step: 25
+        time_step: 5
+      AckermannConstraints:
+        min_turning_r: 0.8
+      critics:
+      - ConstraintCritic
+      - CostCritic
+      - GoalCritic
+      - GoalAngleCritic
+      - PathAlignCritic
+      - PathFollowCritic
+      ConstraintCritic:
+        enabled: true
+        cost_weight: 4.0
+        cost_power: 1
+      CostCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 2.0
+        critical_cost: 300.0
+        consider_footprint: true
+        collision_cost: 1000000.0
+        near_goal_distance: 0.5
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 12.0
+        threshold_to_consider: 1.4
+      GoalAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 8.0
+        threshold_to_consider: 1.0
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 32.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 2
+        threshold_to_consider: 0.08
+        offset_from_furthest: 1
+        use_path_orientations: true
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 8.0
+        offset_from_furthest: 3
+        threshold_to_consider: 0.08
+      enforce_path_inversion: true
+      inversion_xy_tolerance: 0.04
+      inversion_yaw_tolerance: 0.08
+      # Prediction limits for command changes, not calibrated hardware limits.
+      # Steering rate is the virtual four-wheel-steering angle rate while moving.
+      # At rest the model also accounts for wheel alignment before translation.
+      tracking_acceleration: 0.3
+      tracking_deceleration: 0.4
+      tracking_steering_rate: 0.15
+      tracking_wheelbase: 0.46
+      tracking_track: 0.412
+    controller_frequency: 10.0
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    smoothing_frequency: 20.0
+    scale_velocities: true
+    feedback: OPEN_LOOP
+    max_velocity:
+    - 0.2
+    - 0.0
+    - 0.25
+    min_velocity:
+    - -0.15
+    - 0.0
+    - -0.25
+    max_accel:
+    - 0.3
+    - 0.0
+    - 0.5
+    max_decel:
+    - -0.4
+    - 0.0
+    - -0.6
+    odom_topic: /odometry/filtered
+    deadband_velocity:
+    - 0.0
+    - 0.0
+    - 0.0
+    velocity_timeout: 0.3
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      plugins:
+      - static_layer
+      - obstacle_layer
+      - inflation_layer
+      inflation_layer:
+        inflation_radius: 1.0
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      inflation_layer:
+        inflation_radius: 1.0

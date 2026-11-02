@@ -1,0 +1,5 @@
+<library path="ranger_ackermann_controller">
+  <class type="ranger_nav_plugins::AckermannController" base_class_type="nav2_core::Controller">
+    <description>Humble MPPI with feasible sampled Ackermann controls and output constraints after its final smoothing filter.</description>
+  </class>
+</library>

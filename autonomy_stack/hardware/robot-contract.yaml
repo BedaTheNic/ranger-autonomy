@@ -1,0 +1,73 @@
+# Observations from robot_diagnostics_20261102_104903__0bzdr18.tar.gz.
+# Integration metadata, not ROS parameters. No inferred calibration is applied.
+robot:
+  model: Ranger Mini
+  generation: null
+  ros_distribution: jazzy
+  architecture_observed: amd64
+  build_platforms: [linux/amd64, linux/arm64]
+  ros_domain_id: 9
+  rmw_implementation_observed: null
+  base_frame: ranger_base_link
+  physical_footprint_verified: false
+odometry:
+  topic: /odom
+  type: nav_msgs/msg/Odometry
+  publisher: /ranger_base_node
+  frequency_hz_approx: 50
+  frame: odom
+  child_frame: ranger_base_link
+  tf_already_published: true
+  covariance: all_zero_in_sample
+lidar:
+  model: Livox MID360
+  topic: /livox/lidar
+  type: sensor_msgs/msg/PointCloud2
+  frame: livox_frame
+  frequency_hz_approx: 10
+  reliability: reliable
+  observed_base_to_sensor:
+    translation_m: [0.288, -0.007, 0.046]
+    rpy_deg: [0.0, 0.0, 90.0]
+  publish_additional_tf: false
+scans:
+  localization: /scan
+  localization_range_min_m: 1.0
+  obstacles: /scan_obstacles
+  obstacles_range_min_m: 0.4
+  frame: livox_frame
+  frequency_hz_approx: 10
+  reliability: best_effort
+  existing_converter_name_is_duplicated: true
+imu:
+  topic: /livox/imu
+  type: sensor_msgs/msg/Imu
+  frame: livox_frame
+  frequency_hz_nominal_approx: 200
+  acceleration_z_sample: 0.9980404376983643
+  acceleration_units_verified: false
+  orientation_estimate_verified: false
+  covariance: all_zero_in_sample
+  added_to_new_ekf: false
+localization:
+  existing_node: /slam_toolbox
+  map_topic: /map
+  map_to_odom_tf_present: true
+  start_additional_localization_by_default: false
+commands:
+  autonomy_output: /cmd_vel_nav
+  base_input: /cmd_vel
+  type: geometry_msgs/msg/Twist
+  base_subscriber: /ranger_base_node
+  existing_publishers: [/teleop_twist_keyboard, /spray_executor_node, /kinova_state_machine_node]
+  arbitration_and_timeout_verified: false
+  connect_autonomy_to_base: false
+navigation:
+  default_profile: adaptive
+  source_packages: [ranger_nav_plugins, ranger_logging]
+  canonical_config_directory: ugv_sim/ranger/ranger_mini/config
+  log_rotation_bytes: 20971520
+  one_application_process_per_service: true
+steering_feedback:
+  joint_states_topic_present: true
+  ranger_wheel_joint_names_verified: false

@@ -1,0 +1,41 @@
+# Build from the parent src directory; no Gazebo or robot drivers in this image.
+FROM ros:jazzy-ros-base AS dependencies
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3-colcon-common-extensions python3-yaml \
+    ros-jazzy-navigation2 ros-jazzy-nav2-bringup ros-jazzy-slam-toolbox \
+    ros-jazzy-pointcloud-to-laserscan ros-jazzy-tf2-tools \
+    ros-jazzy-rmw-cyclonedds-cpp ros-jazzy-rmw-fastrtps-cpp \
+    libxtensor-dev libxsimd-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM dependencies AS runtime
+ARG BUILD_JOBS=2
+ARG SOURCE_URL=https://github.com/BedaTheNic/ranger-autonomy
+LABEL org.opencontainers.image.source=$SOURCE_URL
+WORKDIR /opt/autonomy_ws
+COPY ugv_sim/ranger/ranger_nav_plugins src/ranger_nav_plugins
+COPY ugv_sim/ranger/four_ws_control src/four_ws_control
+COPY ugv_sim/ranger/ranger_logging src/ranger_logging
+COPY ranger_ros2/ranger_msgs src/ranger_msgs
+COPY ranger_ros2/LICENSE /opt/autonomy/licenses/ranger_ros2.txt
+RUN source /opt/ros/jazzy/setup.bash && \
+    MAKEFLAGS="-j${BUILD_JOBS}" colcon build --executor sequential \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+COPY autonomy_stack/launch /opt/autonomy/launch
+COPY autonomy_stack/config /opt/autonomy/config
+# Use the canonical files developed with the navigation/logging chat, rather
+# than a separate hardware fork of planner/controller/BT tuning.
+COPY ugv_sim/ranger/ranger_mini/config/navigation_*.yaml /opt/autonomy/config/
+COPY ugv_sim/ranger/ranger_mini/config/navigate_*.xml /opt/autonomy/config/
+COPY ugv_sim/ranger/ranger_mini/config/ranger_omni_lattice.* /opt/autonomy/config/
+COPY ugv_sim/ranger/ranger_mini/config/amcl_sim.yaml ugv_sim/ranger/ranger_mini/config/slam_sim.yaml /opt/autonomy/config/
+COPY autonomy_stack/hardware /opt/autonomy/hardware
+RUN python3 /opt/autonomy/hardware/prepare_config.py \
+      /opt/autonomy/config /opt/autonomy/hardware/config
+COPY autonomy_stack/docker/entrypoint.sh /opt/autonomy/entrypoint.sh
+RUN python3 /opt/autonomy/hardware/source_manifest.py /opt/autonomy_ws/src /opt/autonomy/config \
+      > /opt/autonomy/source-manifest.json
+RUN chmod +x /opt/autonomy/entrypoint.sh
+ENV AUTONOMY_CONFIG=/opt/autonomy/hardware/config
+ENTRYPOINT ["/opt/autonomy/entrypoint.sh"]

@@ -1,0 +1,108 @@
+# Mini V2 SIMULATION parameters; not calibrated hardware limits.
+planner_server:
+  ros__parameters:
+    use_sim_time: false
+    GridBased:
+      plugin: nav2_smac_planner/SmacPlannerLattice
+      tolerance: 0.0
+      allow_unknown: false
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 1.0
+      smooth_path: false
+      cache_obstacle_heuristic: false
+      reverse_penalty: 1.0
+      change_penalty: 0.3
+      non_straight_penalty: 1.1
+      cost_penalty: 3.0
+      analytic_expansion_ratio: 3.5
+      # Humble's Lattice analytic shortcut uses Reeds-Shepp even for omni
+      # primitives, producing car-like loops for simple lateral goals. Disable
+      # the shortcut and let the footprint-checked lattice search reach the goal.
+      analytic_expansion_max_length: 0.0
+      # One costmap cell: avoid the cached car-distance heuristic over the
+      # omni search area; use the obstacle-distance heuristic there instead.
+      lookup_table_size: 0.05
+      # The control set already includes all four translation directions.
+      # Reverse expansion duplicates those neighbours in Humble and can
+      # overwrite their primitive/backward flag before costs are evaluated.
+      allow_reverse_expansion: false
+      rotation_penalty: 8.0
+controller_server:
+  ros__parameters:
+    use_sim_time: false
+    FollowPath:
+      plugin: ranger_nav_plugins::ProgressDWBController
+      trajectory_generator_name: dwb_plugins::LimitedAccelGenerator
+      min_vel_x: -0.2
+      max_vel_x: 0.2
+      min_vel_y: -0.2
+      max_vel_y: 0.2
+      max_vel_theta: 0.35
+      min_speed_xy: 0.0
+      max_speed_xy: 0.2
+      min_speed_theta: 0.0
+      acc_lim_x: 0.5
+      acc_lim_y: 0.5
+      acc_lim_theta: 0.5
+      decel_lim_x: -0.5
+      decel_lim_y: -0.5
+      decel_lim_theta: -0.6
+      vx_samples: 9
+      vy_samples: 9
+      vtheta_samples: 9
+      sim_time: 3.0
+      linear_granularity: 0.04
+      angular_granularity: 0.04
+      transform_tolerance: 0.3
+      prune_distance: 1.5
+      forward_prune_distance: 1.5
+      xy_goal_tolerance: 0.15
+      trans_stopped_velocity: 0.03
+      stateful: true
+      short_circuit_trajectory_evaluation: true
+      publish_trajectories: false
+      critics:
+      - ModeConstraint
+      - RotateToGoal
+      - Oscillation
+      - ObstacleFootprint
+      - PathTracking
+      - PathDist
+      - GoalDist
+      - SteeringContinuity
+      - Twirling
+      ModeConstraint.class: ranger_nav_plugins::ModeConstraintCritic
+      ModeConstraint.scale: 1.0
+      ModeConstraint.minimum_turning_radius: 0.5
+      ObstacleFootprint.class: ranger_nav_plugins::MaxObstacleFootprintCritic
+      ObstacleFootprint.scale: 0.2
+      PathDist.scale: 16.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+      Twirling.scale: 5.0
+      publish_evaluation: false
+      sim_period: 0.1
+      PathTracking.class: ranger_nav_plugins::PathTrackingCritic
+      PathTracking.scale: 12.0
+      SteeringContinuity.class: ranger_nav_plugins::SteeringContinuityCritic
+      SteeringContinuity.scale: 0.35
+      SteeringContinuity.wheelbase: 0.46
+      SteeringContinuity.track: 0.412
+    controller_frequency: 10.0
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      plugins:
+      - static_layer
+      - obstacle_layer
+      - inflation_layer
+      inflation_layer:
+        inflation_radius: 1.0
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      inflation_layer:
+        inflation_radius: 1.0
