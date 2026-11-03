@@ -22,7 +22,7 @@ int main(int argc,char **argv)
     map->set_parameter(rclcpp::Parameter("global_frame","map"));
     map->set_parameter(rclcpp::Parameter("plugins",std::vector<std::string>{"inflation_layer"}));
     map->declare_parameter("inflation_layer.plugin","nav2_costmap_2d::InflationLayer");
-    map->set_parameter(rclcpp::Parameter("footprint_padding",.02));
+    map->set_parameter(rclcpp::Parameter("footprint_padding",0.0));
     map->configure();
     std::vector<geometry_msgs::msg::Point> fp;nav2_costmap_2d::makeFootprintFromString(
       "[[0.32,0.30],[0.32,-0.30],[-0.32,-0.30],[-0.32,0.30]]",fp);

@@ -69,10 +69,7 @@ map, and goal list. To test SLAM, launch the same `world` with
    needed. Both use the costmap and robot footprint. The Ackermann candidate
    is evaluated with its headings and gear-change sequence; the Lattice
    candidate is evaluated for permitted mixed/holonomic execution. The shorter
-   feasible candidate wins. For numerically equal lengths, preference goes to
-   greater additional clearance along the entire path, measured in half-cell
-   increments up to six cells. If clearance is also equal, estimated duration
-   breaks the tie. In free space, the holonomic candidate joins start and goal
+   feasible candidate wins. With zero padding, estimated duration breaks numerical distance ties. In free space, the holonomic candidate joins start and goal
    with a straight line after checking the footprint.
 2. Position and heading changes determine curvature and required radius
    `R = 1 / |kappa|`. The angle between the path tangent and chassis
@@ -131,10 +128,8 @@ lies ahead in the selected driving direction.
 
 In a drive recorded on 2026-11-03, the initial selection was a 7.55 m mixed
 path with an estimated duration of 49.46 s. The Ackermann alternative was
-8.95 m with an estimate of 48.07 s. The shorter route won. When adaptive
-Lattice search can use the expanded footprint, it adds another 5 cm beyond
-the basic 4 cm reserve and preserves that clearance when shortening a detour
-around an obstacle.
+8.95 m with an estimate of 48.07 s. The shorter route won. That historical run used an additional 5 cm for lattice search beyond its
+4 cm planning reserve.
 
 In Gazebo, the original controller stopped following the recorded 100-pose
 path at its first reversal. The updated version completed that same path in
@@ -223,28 +218,21 @@ Ackermann radius in those positions must not produce a false
 
 The global planner additionally checks the full goal footprint and interpolated
 poses of both candidates after native planning/smoothing. It does not send
-the controller a path that already fails collision checks. Both costmaps use
-a footprint with 0.02 m padding. The planner internally adds a 0.04 m tracking
-reserve when checking candidates and the goal. Retained-plan validation uses
-the execution footprint, so using that reserve alone does not trigger a new
-plan while the path remains traversable by the robot.
-
-Lattice search uses another 0.025 m discretization reserve. If this addition
-blocks the discretized start or goal pose, search retains the mandatory
-tracking reserve without the extra discretization padding. These additions
-do not modify the shared costmap footprint. They give search room for
-interpolated-path validation instead of repeatedly returning a candidate
-that fails final validation.
+the controller a path that already fails collision checks. The local and global costmaps, goal and retained-path checks, lattice search,
+shortcuts and motion guard use the same unpadded polygon. Its Gazebo dimensions
+are 0.64 × 0.60 m. The Jazzy hardware configuration uses the stock Mini 2.0
+dimensions of 0.738 × 0.500 m, centered on `ranger_base_link`.
+Inflation costs still guide trajectories near obstacles.
 
 The threshold for detailed Lattice footprint checks is calculated from the
-expanded footprint's circumscribed circle, including a cell diagonal. In
+search footprint's circumscribed circle, including a cell diagonal. In
 more open space, the center-cell cost gradient remains active and favors
 the corridor center. Always using the maximum boundary cost flattened
 traversable positions in a narrow corridor and, in a repeated test, selected
 a path too close to the wall.
 
-The goal `(13.7986, 5.83077, 0)` beside an obstacle in `corridor_lab` lacks
-that reserve. Use `(13.8, 6.0, 0)` for the final-passage test; the planner
+Earlier tests with a planning reserve rejected the goal
+`(13.7986, 5.83077, 0)` beside an obstacle in `corridor_lab`. Use `(13.8, 6.0, 0)` for the final-passage test; the planner
 does not automatically relocate the user's goal.
 
 The adaptive profile uses a final XY tolerance of 0.06 m, aligned between

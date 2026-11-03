@@ -62,7 +62,7 @@ public:
     if(raw.poses.size()<3 || max_time_<=elapsed || !smoother_->smooth(smoothed,grid,max_time_-elapsed)) {
       smoothed.poses.clear();
     }
-    switch(selectHybrid(points(raw),points(smoothed),*grid,footprint,limits_)) {
+    switch(selectHybrid(points(raw),points(smoothed),*grid,footprint,limits_,padding_>0)) {
       case HybridChoice::raw: variant="raw";return raw;
       case HybridChoice::smoothed: variant="smoothed";return smoothed;
       case HybridChoice::none: break;
@@ -88,6 +88,6 @@ private:
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> map_;
   std::unique_ptr<RetainedPathService> validity_;
   MotionLimits limits_;
-  double padding_{.04},max_time_{1};
+  double padding_{0.0},max_time_{1};
 };
 }

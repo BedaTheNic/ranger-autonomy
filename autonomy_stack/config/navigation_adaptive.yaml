@@ -1,4 +1,4 @@
-# SIMULATION: planner adds 4 cm internally; validity checks use executing footprint.
+# All profiles use the unpadded costmap footprint.
 planner_server:
   ros__parameters:
     use_sim_time: false
@@ -10,8 +10,8 @@ planner_server:
       holonomic_speed: 0.2
       angular_speed: 0.25
       steering_rate: 1.0
-      lattice_search_padding: 0.025
-      planning_padding: 0.04
+      lattice_search_padding: 0.0
+      planning_padding: 0.0
       goal_connection_distance: 0.25
       Ackermann:
         plugin: nav2_smac_planner/SmacPlannerHybrid
@@ -225,4 +225,3 @@ global_costmap:
     ros__parameters:
       inflation_layer:
         inflation_radius: 1.0
-      footprint_padding: 0.02

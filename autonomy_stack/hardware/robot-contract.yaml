@@ -16,6 +16,7 @@ robot:
   driver_ipc_mode: private
   autonomy_fastdds_builtin_transports: UDPv4
   base_frame: ranger_base_link
+  configured_footprint_m: {length: 0.738, width: 0.500, centered_on: ranger_base_link, padding: 0.0}
   physical_footprint_verified: false
 odometry:
   topic: /odom

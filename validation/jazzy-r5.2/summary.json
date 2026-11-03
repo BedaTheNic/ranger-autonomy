@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "image": "ranger-autonomy:jazzy-r5.2",
+  "physical_robot": false,
+  "footprint_m": {
+    "length": 0.738,
+    "width": 0.5,
+    "base_frame": "ranger_base_link"
+  },
+  "costmap_padding_m": 0.0,
+  "planning_padding_m": 0.0,
+  "lattice_search_padding_m": 0.0,
+  "inflation_radius_m": 1.0,
+  "source_manifest_files_verified": 76,
+  "profiles": [
+    "adaptive",
+    "holonomic",
+    "ackermann"
+  ],
+  "adaptive_ackermann_branch_exercised": true,
+  "unit_tests": {
+    "logging": 11,
+    "navigation_reported": 76,
+    "navigation_skipped": 1,
+    "failures": 0
+  },
+  "measured_CAN_feedback": true,
+  "drive_gateway": true
+}

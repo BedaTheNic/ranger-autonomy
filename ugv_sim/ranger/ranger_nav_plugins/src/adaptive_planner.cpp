@@ -27,17 +27,19 @@ public:
     static_cast<ClearanceLattice *>(holo_.get())->expose_validity=false;
     ack_->configure(parent,name+".Ackermann",tf,map);
     holo_->configure(parent,name+".Holonomic",tf,map);
-    auto parameter=[&](const std::string & key,double & value) {
+    auto parameter=[&](const std::string & key,double & value, bool allow_zero=false) {
       if(!node->has_parameter(name+"."+key)) {node->declare_parameter(name+"."+key,value);}
       value=node->get_parameter(name+"."+key).as_double();
-      if(!std::isfinite(value)||value<=0) {throw std::runtime_error("Invalid ETA limit "+key);}
+      if(!std::isfinite(value) || (allow_zero ? value<0 : value<=0)) {
+        throw std::runtime_error("Invalid planner parameter "+key);
+      }
     };
     parameter("minimum_turning_radius",limits_.radius);
     parameter("forward_speed",limits_.forward);parameter("reverse_speed",limits_.reverse);
     parameter("holonomic_speed",limits_.lateral);parameter("angular_speed",limits_.angular);
     parameter("steering_rate",limits_.steering_rate);
-    parameter("planning_padding",planning_padding_);
-    parameter("lattice_search_padding",static_cast<ClearanceLattice *>(holo_.get())->search_padding);
+    parameter("planning_padding",planning_padding_,true);
+    parameter("lattice_search_padding",static_cast<ClearanceLattice *>(holo_.get())->search_padding,true);
     parameter("goal_connection_distance",static_cast<ClearanceLattice *>(holo_.get())->goal_connection_distance);
     static_cast<ClearanceLattice *>(holo_.get())->planning_padding=planning_padding_;
     ack_->setLimits(limits_,planning_padding_);
@@ -84,7 +86,7 @@ public:
     unsigned aligned=0;
     if(h.poses.size()>1) {
       auto candidate=points(h);
-      aligned=alignStraights(candidate,*grid,footprint,limits_);
+      aligned=alignStraights(candidate,*grid,footprint,limits_,planning_padding_>0);
       if(aligned) {
         // The lattice output is already dense. Only zero-distance pivots were
         // inserted; keep the tested samples exactly as used by the controller.
@@ -109,7 +111,7 @@ public:
     const double lh=std::isfinite(th)?routeLength(points(h),planar(start.pose),planar(goal.pose)):INFINITY;
     bool ack=preferShorterRoute(la,ta,lh,th);
     int ack_clear=-1, holo_clear=-1;
-    if(std::isfinite(la) && std::isfinite(lh) && std::abs(la-lh)<=1e-6) {
+    if(planning_padding_>0 && std::isfinite(la) && std::isfinite(lh) && std::abs(la-lh)<=1e-6) {
       ack_clear=clearanceBands(points(a),*grid,footprint);
       holo_clear=clearanceBands(points(h),*grid,footprint);
       if(ack_clear!=holo_clear) {ack=ack_clear>holo_clear;}
@@ -137,7 +139,7 @@ private:
   rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::String>::SharedPtr publisher_;
   MotionLimits limits_;std::mutex mutex_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> map_;
-  double planning_padding_{.04};
+  double planning_padding_{0.0};
 };
 }
 PLUGINLIB_EXPORT_CLASS(ranger_nav_plugins::AdaptivePlanner,nav2_core::GlobalPlanner)

@@ -15,7 +15,7 @@ public:
     if(!nav2_costmap_2d::makeFootprintFromString(polygon,footprint_) || footprint_.size()<3) {
       throw std::runtime_error("A polygonal local footprint is required");
     }
-    nav2_costmap_2d::padFootprint(footprint_,declare_parameter("footprint_padding",.02));
+    nav2_costmap_2d::padFootprint(footprint_,declare_parameter("footprint_padding",0.0));
     adaptive_=declare_parameter("adaptive",true);
     period_=1./declare_parameter("control_frequency",10.);
     decel_=declare_parameter("linear_deceleration",.4);

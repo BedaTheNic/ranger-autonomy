@@ -45,7 +45,7 @@ inline std::vector<int> gears(const std::vector<Pose2> & path,const MotionLimits
 }
 
 inline HybridChoice selectHybrid(const std::vector<Pose2> & raw, const std::vector<Pose2> & smooth,
-  Grid & grid,const Footprint & footprint,const MotionLimits & limits)
+  Grid & grid,const Footprint & footprint,const MotionLimits & limits, bool compare_clearance=true)
 {
   const bool raw_ok=validCarRoute(raw,grid,footprint,limits);
   const bool smooth_ok=!raw.empty() && !smooth.empty() &&
@@ -57,7 +57,7 @@ inline HybridChoice selectHybrid(const std::vector<Pose2> & raw, const std::vect
   if(!raw_ok) {return HybridChoice::smoothed;}
   const double difference=pathLength(smooth)-pathLength(raw);
   if(std::abs(difference)>1e-6) {return difference<0 ? HybridChoice::smoothed : HybridChoice::raw;}
-  return clearanceBands(raw,grid,footprint)>clearanceBands(smooth,grid,footprint) ?
+  return compare_clearance && clearanceBands(raw,grid,footprint)>clearanceBands(smooth,grid,footprint) ?
     HybridChoice::raw : HybridChoice::smoothed;
 }
 
@@ -70,7 +70,7 @@ inline double routeEta(const std::vector<Pose2> & path, const MotionLimits & lim
 // For a straight crab leg compare an explicitly aligned forward/reverse leg
 // with the same XY trace. Retain endpoint orientations and all original pivots.
 inline unsigned alignStraights(std::vector<Pose2> & path, Grid & grid,
-  const Footprint & footprint, const MotionLimits & limits)
+  const Footprint & footprint, const MotionLimits & limits, bool compare_clearance=true)
 {
   unsigned accepted = 0;
   for (size_t first = 0; first + 1 < path.size();) {
@@ -96,11 +96,11 @@ inline unsigned alignStraights(std::vector<Pose2> & path, Grid & grid,
       const std::vector<Pose2> leg(aligned.begin()+first,aligned.begin()+end+3);
       if (pathFree(leg,grid,footprint)) {
         const std::vector<Pose2> original(path.begin()+first,path.begin()+end+1);
-        const int before=clearanceBands(original,grid,footprint);
-        const int after=clearanceBands(leg,grid,footprint);
+        const bool clearance_ok=!compare_clearance ||
+          clearanceBands(leg,grid,footprint)>=clearanceBands(original,grid,footprint);
         // Same local ETA tie window as the mode scheduler. Avoid gratuitous
         // pivots on a diagonal which the base can execute faster as crab.
-        if (after>=before && routeEta(aligned,limits)<=routeEta(path,limits)+.25) {
+        if (clearance_ok && routeEta(aligned,limits)<=routeEta(path,limits)+.25) {
           path=std::move(aligned); end+=2; ++accepted;
         }
       }

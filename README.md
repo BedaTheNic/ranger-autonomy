@@ -16,12 +16,24 @@ instructions for the current update and diagnostic procedures.
 - Separate SLAM, AMCL, map server, lifecycle, navigation and telemetry services.
 - Segmented JSONL logging, dated sessions, 20 MiB rotation and costmap snapshots.
 
+## Navigation footprint
+
+The hardware envelope selected in the local setup is 0.738 m long and 0.500 m wide, centered
+on `ranger_base_link`. During the image build, `prepare_config.py` writes that
+polygon into the local and global costmap sections of
+`/opt/autonomy/hardware/config/navigation_common.yaml`. Both costmaps and the
+planners use zero additional footprint padding. The Gazebo configuration uses
+its own 0.640 × 0.600 m model envelope.
+[Hardware polygon generator](autonomy_stack/hardware/prepare_config.py) ·
+[Gazebo costmaps](ugv_sim/ranger/ranger_mini/config/navigation_common.yaml) ·
+[Planner settings](ugv_sim/ranger/ranger_mini/config/navigation_adaptive.yaml)
+
 ## Deploy on the robot
 
-After the `jazzy-r5.1` workflow has completed, download the release deployment bundle:
+Download the `jazzy-r5.2` deployment bundle:
 
 ```bash
-curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r5.1/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
+curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r5.2/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
 tar -xzf ranger-hardware-deploy.tar.gz
 cd ranger-hardware
 bash robot.sh pull
@@ -30,7 +42,7 @@ bash robot.sh check
 ```
 
 The bundle includes a non-secret `.env` preset. The image is
-`ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.1`, for the robot’s amd64 architecture.
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.2`, for the robot’s amd64 architecture.
 For a private GHCR package, first run `docker login ghcr.io -u BedaTheNic` on the robot.
 No source checkout or build is needed on the robot.
 
@@ -56,6 +68,13 @@ for the developed stopping-distance checks. The gateway's former 0.05 m/s and
 0.10 rad/s clamp and its hard commissioning ceilings are removed. Configured
 Nav2 velocity/acceleration limits and obstacle-dependent braking remain.
 The existing `jazzy-r3-gui` viewer is compatible.
+
+`jazzy-r5.2` applies the local hardware envelope to both costmaps and removes
+additional costmap, planner, lattice-search and shortcut footprint reserves.
+Inflation costs, swept-footprint collision checks and stopping-distance checks
+remain enabled. The measured CAN steering adapter publishes
+`/ranger/steering_joint_states` for adaptive navigation. The configured envelope
+has not been measured against the complete robot and its mounted equipment.
 
 For an existing installation, preserve `.env` (including `NAV_PROFILE`), maps
 and logs, stop/disarm driving, change `AUTONOMY_IMAGE` to the new tag, then pull

@@ -12,7 +12,7 @@ import time
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.qos import QoSProfile, DurabilityPolicy, qos_profile_sensor_data
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import PolygonStamped, TransformStamped
 from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import PointCloud2, PointField, JointState
 from tf2_ros import StaticTransformBroadcaster
@@ -48,6 +48,11 @@ odom=Odometry();odom.header.frame_id='odom';odom.child_frame_id='ranger_base_lin
 joints=JointState();joints.name=['fl_steering_wheel','fr_steering_wheel','rl_steering_wheel','rr_steering_wheel'];joints.position=[0.]*4
 lidar_tf=TransformStamped();lidar_tf.header.frame_id='ranger_base_link';lidar_tf.child_frame_id='livox_frame';lidar_tf.transform.translation.x=.288;lidar_tf.transform.translation.y=-.007;lidar_tf.transform.translation.z=.046;lidar_tf.transform.rotation.z=math.sin(math.pi/4);lidar_tf.transform.rotation.w=math.cos(math.pi/4);broadcaster.sendTransform(transforms+[lidar_tf])
 cloud.header.frame_id='livox_frame'
+# The fixture fixes both base transforms at the origin with identity rotation.
+footprints={}
+for costmap in ('local_costmap','global_costmap'):
+ node.create_subscription(PolygonStamped,'/'+costmap+'/published_footprint',
+  lambda msg,key=costmap: footprints.update({key:msg.polygon.points}),10)
 received_scan=[]
 candidate_commands=[];guard_commands=[];publish_cloud=True
 from geometry_msgs.msg import Twist
@@ -90,7 +95,7 @@ try:
  manager=node.create_client(Trigger,'/lifecycle_manager_navigation/is_active')
  bringup=None;bringup_sent=0.;manager_active=False
  pending={};active=set();deadline=time.monotonic()+70
- while time.monotonic()<deadline and (len(active)<4 or not received_scan):
+ while time.monotonic()<deadline and (len(active)<4 or not received_scan or len(footprints)<2):
   rclpy.spin_once(node,timeout_sec=.1)
   # Let the lifecycle manager finish its own transitions before this fixture
   # issues GetState requests to the same nodes. Configuration can spend many
@@ -112,6 +117,12 @@ try:
    if name not in pending and client.service_is_ready():pending[name]=client.call_async(GetState.Request())
   if any(p.poll() is not None for p in processes):raise RuntimeError('A launch process exited')
  assert len(active)==4,active
+ expected={(x,y) for x in (-.369,.369) for y in (-.250,.250)}
+ assert len(footprints)==2,footprints.keys()
+ for costmap,points in footprints.items():
+  actual={(round(p.x,4),round(p.y,4)) for p in points}
+  assert actual==expected,(costmap,actual,expected)
+ print('Verified both published 0.738 x 0.500 m physical footprints',flush=True)
  assert received_scan and received_scan[-1]=='ranger_base_link',received_scan
  action=ActionClient(node,ComputePathToPose,'/compute_path_to_pose')
  assert action.wait_for_server(timeout_sec=5)

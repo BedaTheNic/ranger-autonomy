@@ -1,0 +1,395 @@
+test_native_log_flag_is_separate_argv_not_a_space_joined_string (test_launch_support.GazeboArgumentsTest.test_native_log_flag_is_separate_argv_not_a_space_joined_string) ... ok
+test_bounded_queue_reports_loss_and_drains (test_logging.LoggingTests.test_bounded_queue_reports_loss_and_drains) ... ok
+test_oversized_unicode_record_reassembles_across_parts (test_logging.LoggingTests.test_oversized_unicode_record_reassembles_across_parts) ... ok
+test_partial_disk_failure_recovers_into_new_part (test_logging.LoggingTests.test_partial_disk_failure_recovers_into_new_part) ... ok
+test_reopen_does_not_overwrite_existing_part (test_logging.LoggingTests.test_reopen_does_not_overwrite_existing_part) ... ok
+test_rotation_keeps_every_record_and_all_previous_parts (test_logging.LoggingTests.test_rotation_keeps_every_record_and_all_previous_parts) ... ok
+test_runner_captures_both_streams_and_preserves_exit (test_logging.LoggingTests.test_runner_captures_both_streams_and_preserves_exit) ... ok
+test_runner_forwards_shutdown_and_finishes_manifest (test_logging.LoggingTests.test_runner_forwards_shutdown_and_finishes_manifest) ... ok
+test_sessions_are_unique_and_grouped_by_date (test_logging.LoggingTests.test_sessions_are_unique_and_grouped_by_date) ... ok
+test_short_writes_are_completed (test_logging.LoggingTests.test_short_writes_are_completed) ... ok
+test_writer_continues_after_io_error (test_logging.LoggingTests.test_writer_continues_after_io_error) ... Ranger logger cannot write: simulated failure; records lost: 1
+ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.549s
+
+OK
+Starting >>> ranger_nav_plugins
+[Processing: ranger_nav_plugins]
+[Processing: ranger_nav_plugins]
+Finished <<< ranger_nav_plugins [1min 8s]
+--- stderr: ranger_nav_plugins
+In file included from /usr/include/c++/13/string:51,
+                 from /usr/include/c++/13/bits/locale_classes.h:40,
+                 from /usr/include/c++/13/bits/ios_base.h:41,
+                 from /usr/include/c++/13/iomanip:42,
+                 from /opt/ros/jazzy/src/gtest_vendor/include/gtest/gtest.h:54,
+                 from /tmp/ranger-regression-W8QgbJ/src/ranger_nav_plugins/test/test_feasible_model.cpp:2:
+In static member function ‘static _Up* std::__copy_move<_IsMove, true, std::random_access_iterator_tag>::__copy_m(_Tp*, _Tp*, _Up*) [with _Tp = long unsigned int; _Up = long unsigned int; bool _IsMove = true]’,
+    inlined from ‘_OI std::__copy_move_a2(_II, _II, _OI) [with bool _IsMove = true; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:506:30,
+    inlined from ‘_OI std::__copy_move_a1(_II, _II, _OI) [with bool _IsMove = true; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:533:42,
+    inlined from ‘_OI std::__copy_move_a(_II, _II, _OI) [with bool _IsMove = true; _II = long unsigned int*; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:540:31,
+    inlined from ‘_OI std::copy(_II, _II, _OI) [with _II = move_iterator<long unsigned int*>; _OI = long unsigned int*]’ at /usr/include/c++/13/bits/stl_algobase.h:633:7,
+    inlined from ‘static _ForwardIterator std::__uninitialized_copy<true>::__uninit_copy(_InputIterator, _InputIterator, _ForwardIterator) [with _InputIterator = std::move_iterator<long unsigned int*>; _ForwardIterator = long unsigned int*]’ at /usr/include/c++/13/bits/stl_uninitialized.h:147:27,
+    inlined from ‘_ForwardIterator std::uninitialized_copy(_InputIterator, _InputIterator, _ForwardIterator) [with _InputIterator = move_iterator<long unsigned int*>; _ForwardIterator = long unsigned int*]’ at /usr/include/c++/13/bits/stl_uninitialized.h:185:15,
+    inlined from ‘_ForwardIterator std::__uninitialized_copy_a(_InputIterator, _InputIterator, _ForwardIterator, allocator<_Tp>&) [with _InputIterator = move_iterator<long unsigned int*>; _ForwardIterator = long unsigned int*; _Tp = long unsigned int]’ at /usr/include/c++/13/bits/stl_uninitialized.h:373:37,
+    inlined from ‘_ForwardIterator std::__uninitialized_move_if_noexcept_a(_InputIterator, _InputIterator, _ForwardIterator, _Allocator&) [with _InputIterator = long unsigned int*; _ForwardIterator = long unsigned int*; _Allocator = allocator<long unsigned int>]’ at /usr/include/c++/13/bits/stl_uninitialized.h:399:2,
+    inlined from ‘void std::vector<_Tp, _Alloc>::_M_range_insert(iterator, _ForwardIterator, _ForwardIterator, std::forward_iterator_tag) [with _ForwardIterator = __gnu_cxx::__normal_iterator<const long unsigned int*, std::vector<long unsigned int> >; _Tp = long unsigned int; _Alloc = std::allocator<long unsigned int>]’ at /usr/include/c++/13/bits/vector.tcc:811:9,
+    inlined from ‘std::vector<_Tp, _Alloc>::iterator std::vector<_Tp, _Alloc>::insert(const_iterator, _InputIterator, _InputIterator) [with _InputIterator = __gnu_cxx::__normal_iterator<const long unsigned int*, std::vector<long unsigned int> >; <template-parameter-2-2> = void; _Tp = long unsigned int; _Alloc = std::allocator<long unsigned int>]’ at /usr/include/c++/13/bits/stl_vector.h:1486:19,
+    inlined from ‘void rclcpp::experimental::IntraProcessManager::do_intra_process_publish(uint64_t, std::unique_ptr<MessageT, Deleter>, typename std::allocator_traits<_Alloc>::rebind_traits<MessageT>::allocator_type&) [with MessageT = statistics_msgs::msg::MetricsMessage_<std::allocator<void> >; ROSMessageType = statistics_msgs::msg::MetricsMessage_<std::allocator<void> >; Alloc = std::allocator<void>; Deleter = std::default_delete<statistics_msgs::msg::MetricsMessage_<std::allocator<void> > >]’ at /opt/ros/jazzy/include/rclcpp/rclcpp/experimental/intra_process_manager.hpp:258:33:
+/usr/include/c++/13/bits/stl_algobase.h:437:30: warning: ‘void* __builtin_memcpy(void*, const void*, long unsigned int)’ reading between 9 and 9223372036854775800 bytes from a region of size 8 [-Wstringop-overread]
+  437 |             __builtin_memmove(__result, __first, sizeof(_Tp) * _Num);
+      |             ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:33,
+                 from /usr/include/c++/13/bits/allocator.h:46,
+                 from /usr/include/c++/13/string:43:
+In member function ‘_Tp* std::__new_allocator<_Tp>::allocate(size_type, const void*) [with _Tp = std::unique_ptr<libstatistics_collector::topic_statistics_collector::TopicStatisticsCollector<rmw_message_info_s, void> >]’,
+    inlined from ‘static _Tp* std::allocator_traits<std::allocator<_CharT> >::allocate(allocator_type&, size_type) [with _Tp = std::unique_ptr<libstatistics_collector::topic_statistics_collector::TopicStatisticsCollector<rmw_message_info_s, void> >]’ at /usr/include/c++/13/bits/alloc_traits.h:482:28,
+    inlined from ‘std::_Vector_base<_Tp, _Alloc>::pointer std::_Vector_base<_Tp, _Alloc>::_M_allocate(std::size_t) [with _Tp = std::unique_ptr<libstatistics_collector::topic_statistics_collector::TopicStatisticsCollector<rmw_message_info_s, void> >; _Alloc = std::allocator<std::unique_ptr<libstatistics_collector::topic_statistics_collector::TopicStatisticsCollector<rmw_message_info_s, void> > >]’ at /usr/include/c++/13/bits/stl_vector.h:381:33,
+    inlined from ‘std::_Vector_base<_Tp, _Alloc>::pointer std::_Vector_base<_Tp, _Alloc>::_M_allocate(std::size_t) [with _Tp = long unsigned int; _Alloc = std::allocator<long unsigned int>]’ at /usr/include/c++/13/bits/stl_vector.h:378:7,
+    inlined from ‘void std::vector<_Tp, _Alloc>::_M_range_initialize(_ForwardIterator, _ForwardIterator, std::forward_iterator_tag) [with _ForwardIterator = __gnu_cxx::__normal_iterator<const long unsigned int*, std::vector<long unsigned int> >; _Tp = long unsigned int; _Alloc = std::allocator<long unsigned int>]’ at /usr/include/c++/13/bits/stl_vector.h:1692:25,
+    inlined from ‘std::vector<_Tp, _Alloc>::vector(_InputIterator, _InputIterator, const allocator_type&) [with _InputIterator = __gnu_cxx::__normal_iterator<const long unsigned int*, std::vector<long unsigned int> >; <template-parameter-2-2> = void; _Tp = long unsigned int; _Alloc = std::allocator<long unsigned int>]’ at /usr/include/c++/13/bits/stl_vector.h:711:23,
+    inlined from ‘void rclcpp::experimental::IntraProcessManager::do_intra_process_publish(uint64_t, std::unique_ptr<MessageT, Deleter>, typename std::allocator_traits<_Alloc>::rebind_traits<MessageT>::allocator_type&) [with MessageT = statistics_msgs::msg::MetricsMessage_<std::allocator<void> >; ROSMessageType = statistics_msgs::msg::MetricsMessage_<std::allocator<void> >; Alloc = std::allocator<void>; Deleter = std::default_delete<statistics_msgs::msg::MetricsMessage_<std::allocator<void> > >]’ at /opt/ros/jazzy/include/rclcpp/rclcpp/experimental/intra_process_manager.hpp:256:29:
+/usr/include/c++/13/bits/new_allocator.h:151:55: note: source object of size 8 allocated by ‘operator new’
+  151 |         return static_cast<_Tp*>(_GLIBCXX_OPERATOR_NEW(__n * sizeof(_Tp)));
+      |                                                       ^
+---
+
+Summary: 1 package finished [1min 8s]
+  1 package had stderr output: ranger_nav_plugins
+Starting >>> ranger_nav_plugins
+UpdateCTestConfiguration  from :/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/CTestConfiguration.ini
+Parse Config file:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/CTestConfiguration.ini
+   Site: 45a55e381c6a
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261103-1428 - Experimental
+UpdateCTestConfiguration  from :/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/CTestConfiguration.ini
+Parse Config file:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/CTestConfiguration.ini
+Test project /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_holonomic_path
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_holonomic_path.gtest.xml" "--package-name" "ranger_nav_plugins" "--output-file" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/ament_cmake_gtest/test_holonomic_path.txt" "--command" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_holonomic_path" "--gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_holonomic_path.gtest.xml"
+1: Working Directory: /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins':
+1:  - /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_holonomic_path --gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_holonomic_path.gtest.xml
+1: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 15 tests from 4 test suites.
+1: [----------] Global test environment set-up.
+1: [----------] 9 tests from HolonomicPath
+1: [ RUN      ] HolonomicPath.ArbitraryDiagonalAttainsEuclideanLowerBoundWithoutRotatingBody
+1: [       OK ] HolonomicPath.ArbitraryDiagonalAttainsEuclideanLowerBoundWithoutRotatingBody (0 ms)
+1: [ RUN      ] HolonomicPath.GoalYawIsAnExplicitPivotNotRotationDuringCrabMotion
+1: [       OK ] HolonomicPath.GoalYawIsAnExplicitPivotNotRotationDuringCrabMotion (0 ms)
+1: [ RUN      ] HolonomicPath.NoCornerCutThroughObstacleOrUnknown
+1: [       OK ] HolonomicPath.NoCornerCutThroughObstacleOrUnknown (0 ms)
+1: [ RUN      ] HolonomicPath.WholeFootprintRejectsClearCentreLineBesideWall
+1: [       OK ] HolonomicPath.WholeFootprintRejectsClearCentreLineBesideWall (0 ms)
+1: [ RUN      ] HolonomicPath.RemovesOptionalPivotsOnlyWithAFullCollisionCheckedReplacement
+1: [       OK ] HolonomicPath.RemovesOptionalPivotsOnlyWithAFullCollisionCheckedReplacement (0 ms)
+1: [ RUN      ] HolonomicPath.KeepsRequiredPivotBetweenNarrowPerpendicularPassages
+1: [       OK ] HolonomicPath.KeepsRequiredPivotBetweenNarrowPerpendicularPassages (2 ms)
+1: [ RUN      ] HolonomicPath.ShortcutBudgetExhaustionKeepsTheOriginalFeasibleRoute
+1: [       OK ] HolonomicPath.ShortcutBudgetExhaustionKeepsTheOriginalFeasibleRoute (0 ms)
+1: [ RUN      ] HolonomicPath.ShorterRouteWinsEvenWithSlowerEstimatedArrival
+1: [       OK ] HolonomicPath.ShorterRouteWinsEvenWithSlowerEstimatedArrival (0 ms)
+1: [ RUN      ] HolonomicPath.SnappedEndpointsCannotMakeADetourLookShorterThanTheDirectRoute
+1: [       OK ] HolonomicPath.SnappedEndpointsCannotMakeADetourLookShorterThanTheDirectRoute (0 ms)
+1: [----------] 9 tests from HolonomicPath (3 ms total)
+1: 
+1: [----------] 2 tests from HolonomicVelocity
+1: [ RUN      ] HolonomicVelocity.PreservesDiagonalRatioUnderAccelerationAndSpeedLimits
+1: [       OK ] HolonomicVelocity.PreservesDiagonalRatioUnderAccelerationAndSpeedLimits (0 ms)
+1: [ RUN      ] HolonomicVelocity.DoesNotInventInstantDirectionOrRotationChanges
+1: [       OK ] HolonomicVelocity.DoesNotInventInstantDirectionOrRotationChanges (0 ms)
+1: [----------] 2 tests from HolonomicVelocity (0 ms total)
+1: 
+1: [----------] 3 tests from RouteQuality
+1: [ RUN      ] RouteQuality.RetainedPathUsesReserveAndIgnoresPassedObstacle
+1: [       OK ] RouteQuality.RetainedPathUsesReserveAndIgnoresPassedObstacle (0 ms)
+1: [ RUN      ] RouteQuality.NearStraightCanAlignWithoutChangingEndpointsOrLength
+1: [       OK ] RouteQuality.NearStraightCanAlignWithoutChangingEndpointsOrLength (6 ms)
+1: [ RUN      ] RouteQuality.InvalidSmoothingKeepsRawRouteAndItsReversal
+1: [       OK ] RouteQuality.InvalidSmoothingKeepsRawRouteAndItsReversal (0 ms)
+1: [----------] 3 tests from RouteQuality (6 ms total)
+1: 
+1: [----------] 1 test from StoppingDistance
+1: [ RUN      ] StoppingDistance.SlowsBeforeObstacleAndAccountsForSensorDelay
+1: [       OK ] StoppingDistance.SlowsBeforeObstacleAndAccountsForSensorDelay (0 ms)
+1: [----------] 1 test from StoppingDistance (0 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 15 tests from 4 test suites ran. (10 ms total)
+1: [  PASSED  ] 15 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_holonomic_path.gtest.xml'
+1: -- run_test.py: verify result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_holonomic_path.gtest.xml'
+1/7 Test #1: test_holonomic_path ..............   Passed    0.08 sec
+test 2
+    Start 2: test_navigation_geometry
+
+2: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_navigation_geometry.gtest.xml" "--package-name" "ranger_nav_plugins" "--output-file" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/ament_cmake_gtest/test_navigation_geometry.txt" "--command" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_navigation_geometry" "--gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_navigation_geometry.gtest.xml"
+2: Working Directory: /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+2: Test timeout computed to be: 60
+2: -- run_test.py: invoking following command in '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins':
+2:  - /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_navigation_geometry --gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_navigation_geometry.gtest.xml
+2: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+2: [==========] Running 20 tests from 1 test suite.
+2: [----------] Global test environment set-up.
+2: [----------] 20 tests from Geometry
+2: [ RUN      ] Geometry.AssistanceHonoursSpeedLimitUnitsAndReset
+2: [       OK ] Geometry.AssistanceHonoursSpeedLimitUnitsAndReset (0 ms)
+2: [ RUN      ] Geometry.ReversePursuitPreservesAckermannCurvature
+2: [       OK ] Geometry.ReversePursuitPreservesAckermannCurvature (0 ms)
+2: [ RUN      ] Geometry.LateralCandidateDoesNotRotate
+2: [       OK ] Geometry.LateralCandidateDoesNotRotate (0 ms)
+2: [ RUN      ] Geometry.AckermannProgressAssistCannotDriveAwayFromAMissedCusp
+2: [       OK ] Geometry.AckermannProgressAssistCannotDriveAwayFromAMissedCusp (0 ms)
+2: [ RUN      ] Geometry.CornerProjectionCannotSkipTheVertexToAnAckermannExit
+2: [       OK ] Geometry.CornerProjectionCannotSkipTheVertexToAnAckermannExit (0 ms)
+2: [ RUN      ] Geometry.MandatoryPivotSeparatesOverlappingTranslationBranches
+2: [       OK ] Geometry.MandatoryPivotSeparatesOverlappingTranslationBranches (0 ms)
+2: [ RUN      ] Geometry.NewObstacleCancelsAnActiveRotation
+2: [       OK ] Geometry.NewObstacleCancelsAnActiveRotation (0 ms)
+2: [ RUN      ] Geometry.FootprintSweepRejectsCollisionAndUnknown
+2: [       OK ] Geometry.FootprintSweepRejectsCollisionAndUnknown (0 ms)
+2: [ RUN      ] Geometry.AssistanceStartsBeforeGlobalProgressTimeoutAndKeepsCommitment
+2: [       OK ] Geometry.AssistanceStartsBeforeGlobalProgressTimeoutAndKeepsCommitment (0 ms)
+2: [ RUN      ] Geometry.WholeRotationRejectsIntermediateCornerCollision
+2: [       OK ] Geometry.WholeRotationRejectsIntermediateCornerCollision (0 ms)
+2: [ RUN      ] Geometry.ContinuousPathCheckFindsObstacleBetweenWaypoints
+2: [       OK ] Geometry.ContinuousPathCheckFindsObstacleBetweenWaypoints (0 ms)
+2: [ RUN      ] Geometry.HolonomicRotationBrakesAndCommitsToReferenceHeading
+2: [       OK ] Geometry.HolonomicRotationBrakesAndCommitsToReferenceHeading (0 ms)
+2: [ RUN      ] Geometry.DifficultCrabMotionCanRotateBeforeNarrowPassage
+2: [       OK ] Geometry.DifficultCrabMotionCanRotateBeforeNarrowPassage (0 ms)
+2: [ RUN      ] Geometry.ApproachingNarrowPassageRotatesBeforeControllerStalls
+2: [       OK ] Geometry.ApproachingNarrowPassageRotatesBeforeControllerStalls (0 ms)
+2: [ RUN      ] Geometry.OpenCrabRouteDoesNotAddUnnecessaryRotation
+2: [       OK ] Geometry.OpenCrabRouteDoesNotAddUnnecessaryRotation (0 ms)
+2: [ RUN      ] Geometry.MandatoryPivotContinuesDuringOptionalHeadingCooldown
+2: [       OK ] Geometry.MandatoryPivotContinuesDuringOptionalHeadingCooldown (0 ms)
+2: [ RUN      ] Geometry.FinalAlignmentUsesEndpointBeyondProjectionSearchWindow
+2: [       OK ] Geometry.FinalAlignmentUsesEndpointBeyondProjectionSearchWindow (0 ms)
+2: [ RUN      ] Geometry.PlannedPivotHeadingIsNotAppliedBeforeItsPosition
+2: [       OK ] Geometry.PlannedPivotHeadingIsNotAppliedBeforeItsPosition (0 ms)
+2: [ RUN      ] Geometry.GoalConnectorKeepsExactPoseWhenSnappedCornerIsOccupied
+2: [       OK ] Geometry.GoalConnectorKeepsExactPoseWhenSnappedCornerIsOccupied (0 ms)
+2: [ RUN      ] Geometry.GoalConnectorChecksIntermediateRotationNotJustEndpoints
+2: [       OK ] Geometry.GoalConnectorChecksIntermediateRotationNotJustEndpoints (0 ms)
+2: [----------] 20 tests from Geometry (2 ms total)
+2: 
+2: [----------] Global test environment tear-down
+2: [==========] 20 tests from 1 test suite ran. (2 ms total)
+2: [  PASSED  ] 20 tests.
+2: -- run_test.py: return code 0
+2: -- run_test.py: inject classname prefix into gtest result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_navigation_geometry.gtest.xml'
+2: -- run_test.py: verify result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_navigation_geometry.gtest.xml'
+2/7 Test #2: test_navigation_geometry .........   Passed    0.05 sec
+test 3
+    Start 3: test_mode_policy
+
+3: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_mode_policy.gtest.xml" "--package-name" "ranger_nav_plugins" "--output-file" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/ament_cmake_gtest/test_mode_policy.txt" "--command" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_mode_policy" "--gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_mode_policy.gtest.xml"
+3: Working Directory: /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+3: Test timeout computed to be: 60
+3: -- run_test.py: invoking following command in '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins':
+3:  - /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_mode_policy --gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_mode_policy.gtest.xml
+3: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+3: [==========] Running 12 tests from 1 test suite.
+3: [----------] Global test environment set-up.
+3: [----------] 12 tests from ModePolicy
+3: [ RUN      ] ModePolicy.RadiusAloneCannotAuthorizeLateralDriving
+3: [       OK ] ModePolicy.RadiusAloneCannotAuthorizeLateralDriving (0 ms)
+3: [ RUN      ] ModePolicy.StraightForwardAndReverseAreFeasible
+3: [       OK ] ModePolicy.StraightForwardAndReverseAreFeasible (0 ms)
+3: [ RUN      ] ModePolicy.TurningRadiusAndInPlaceRotationAreChecked
+3: [       OK ] ModePolicy.TurningRadiusAndInPlaceRotationAreChecked (0 ms)
+3: [ RUN      ] ModePolicy.ETAIncludesSteeringRotationAndReversals
+3: [       OK ] ModePolicy.ETAIncludesSteeringRotationAndReversals (0 ms)
+3: [ RUN      ] ModePolicy.ShortAckermannIslandsDoNotCauseChatter
+3: [       OK ] ModePolicy.ShortAckermannIslandsDoNotCauseChatter (0 ms)
+3: [ RUN      ] ModePolicy.HolonomicETAChargesIntermediateBodyRotation
+3: [       OK ] ModePolicy.HolonomicETAChargesIntermediateBodyRotation (0 ms)
+3: [ RUN      ] ModePolicy.ShrinkingAnActiveSegmentDoesNotTriggerEarlyHandoff
+3: [       OK ] ModePolicy.ShrinkingAnActiveSegmentDoesNotTriggerEarlyHandoff (0 ms)
+3: [ RUN      ] ModePolicy.CarReferenceKeepsDirectionSequenceAtACusp
+3: [       OK ] ModePolicy.CarReferenceKeepsDirectionSequenceAtACusp (0 ms)
+3: [ RUN      ] ModePolicy.ShallowFixedHeadingCrabIsNotAnAckermannStraight
+3: [       OK ] ModePolicy.ShallowFixedHeadingCrabIsNotAnAckermannStraight (0 ms)
+3: [ RUN      ] ModePolicy.TerminalCarSectionCanFinishByHolonomicAlignment
+3: [       OK ] ModePolicy.TerminalCarSectionCanFinishByHolonomicAlignment (0 ms)
+3: [ RUN      ] ModePolicy.NearEndpointCannotSkipUntravelledLoop
+3: [       OK ] ModePolicy.NearEndpointCannotSkipUntravelledLoop (0 ms)
+3: [ RUN      ] ModePolicy.TerminalHandoffDoesNotSkipPivotOrReversal
+3: [       OK ] ModePolicy.TerminalHandoffDoesNotSkipPivotOrReversal (0 ms)
+3: [----------] 12 tests from ModePolicy (0 ms total)
+3: 
+3: [----------] Global test environment tear-down
+3: [==========] 12 tests from 1 test suite ran. (0 ms total)
+3: [  PASSED  ] 12 tests.
+3: -- run_test.py: return code 0
+3: -- run_test.py: inject classname prefix into gtest result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_mode_policy.gtest.xml'
+3: -- run_test.py: verify result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_mode_policy.gtest.xml'
+3/7 Test #3: test_mode_policy .................   Passed    0.04 sec
+test 4
+    Start 4: test_tracking_critics
+
+4: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_tracking_critics.gtest.xml" "--package-name" "ranger_nav_plugins" "--output-file" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/ament_cmake_gtest/test_tracking_critics.txt" "--command" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_tracking_critics" "--gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_tracking_critics.gtest.xml"
+4: Working Directory: /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+4: Test timeout computed to be: 60
+4: -- run_test.py: invoking following command in '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins':
+4:  - /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_tracking_critics --gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_tracking_critics.gtest.xml
+4: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+4: [==========] Running 3 tests from 2 test suites.
+4: [----------] Global test environment set-up.
+4: [----------] 1 test from PathTracking
+4: [ RUN      ] PathTracking.ScoresCornerCuttingEvenWhenBothEndpointsAreOnPath
+4: [       OK ] PathTracking.ScoresCornerCuttingEvenWhenBothEndpointsAreOnPath (0 ms)
+4: [----------] 1 test from PathTracking (0 ms total)
+4: 
+4: [----------] 2 tests from SteeringContinuity
+4: [ RUN      ] SteeringContinuity.InitialAlignmentAndReverseLateralTravelRemainPossible
+4: [       OK ] SteeringContinuity.InitialAlignmentAndReverseLateralTravelRemainPossible (0 ms)
+4: [ RUN      ] SteeringContinuity.SidewaysCorrectionsStayOnTheSameLegalBranch
+4: [       OK ] SteeringContinuity.SidewaysCorrectionsStayOnTheSameLegalBranch (0 ms)
+4: [----------] 2 tests from SteeringContinuity (0 ms total)
+4: 
+4: [----------] Global test environment tear-down
+4: [==========] 3 tests from 2 test suites ran. (0 ms total)
+4: [  PASSED  ] 3 tests.
+4: -- run_test.py: return code 0
+4: -- run_test.py: inject classname prefix into gtest result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_tracking_critics.gtest.xml'
+4: -- run_test.py: verify result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_tracking_critics.gtest.xml'
+4/7 Test #4: test_tracking_critics ............   Passed    0.05 sec
+test 5
+    Start 5: test_path_cache_bt
+
+5: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_path_cache_bt.gtest.xml" "--package-name" "ranger_nav_plugins" "--output-file" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/ament_cmake_gtest/test_path_cache_bt.txt" "--command" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_path_cache_bt" "--gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_path_cache_bt.gtest.xml"
+5: Working Directory: /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+5: Test timeout computed to be: 60
+5: -- run_test.py: invoking following command in '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins':
+5:  - /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_path_cache_bt --gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_path_cache_bt.gtest.xml
+5: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+5: [==========] Running 14 tests from 1 test suite.
+5: [----------] Global test environment set-up.
+5: [----------] 14 tests from NavigationTrees/PathPolicy
+5: [ RUN      ] NavigationTrees/PathPolicy.RetainsPathWhileControllerKeepsRunning/0
+5: [       OK ] NavigationTrees/PathPolicy.RetainsPathWhileControllerKeepsRunning/0 (43 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.RetainsPathWhileControllerKeepsRunning/1
+5: [       OK ] NavigationTrees/PathPolicy.RetainsPathWhileControllerKeepsRunning/1 (44 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.ChangedGoalAndBlockedPathEachRequestOneNewPlan/0
+5: [       OK ] NavigationTrees/PathPolicy.ChangedGoalAndBlockedPathEachRequestOneNewPlan/0 (34 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.ChangedGoalAndBlockedPathEachRequestOneNewPlan/1
+5: [       OK ] NavigationTrees/PathPolicy.ChangedGoalAndBlockedPathEachRequestOneNewPlan/1 (34 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.ControllerFailureForcesReplanEvenWhenPathIsCollisionFree/0
+5: [       OK ] NavigationTrees/PathPolicy.ControllerFailureForcesReplanEvenWhenPathIsCollisionFree/0 (23 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.ControllerFailureForcesReplanEvenWhenPathIsCollisionFree/1
+5: [       OK ] NavigationTrees/PathPolicy.ControllerFailureForcesReplanEvenWhenPathIsCollisionFree/1 (23 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.GoalChangedDuringPlanningIsNotCachedAsTheOldPlansGoal/0
+5: [       OK ] NavigationTrees/PathPolicy.GoalChangedDuringPlanningIsNotCachedAsTheOldPlansGoal/0 (25 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.GoalChangedDuringPlanningIsNotCachedAsTheOldPlansGoal/1
+5: [       OK ] NavigationTrees/PathPolicy.GoalChangedDuringPlanningIsNotCachedAsTheOldPlansGoal/1 (24 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.NewRequestToSameGoalDoesNotReusePreviousPath/0
+5: [       OK ] NavigationTrees/PathPolicy.NewRequestToSameGoalDoesNotReusePreviousPath/0 (23 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.NewRequestToSameGoalDoesNotReusePreviousPath/1
+5: [       OK ] NavigationTrees/PathPolicy.NewRequestToSameGoalDoesNotReusePreviousPath/1 (23 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.PlannerFailureRetriesAfterClearingCostmap/0
+5: [       OK ] NavigationTrees/PathPolicy.PlannerFailureRetriesAfterClearingCostmap/0 (12 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.PlannerFailureRetriesAfterClearingCostmap/1
+5: [       OK ] NavigationTrees/PathPolicy.PlannerFailureRetriesAfterClearingCostmap/1 (12 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.PruningPassedWaypointsDoesNotReplanButNewWaypointsDo/0
+5: /tmp/ranger-regression-W8QgbJ/src/ranger_nav_plugins/test/test_path_cache_bt.cpp:192: Skipped
+5: 
+5: 
+5: [  SKIPPED ] NavigationTrees/PathPolicy.PruningPassedWaypointsDoesNotReplanButNewWaypointsDo/0 (1 ms)
+5: [ RUN      ] NavigationTrees/PathPolicy.PruningPassedWaypointsDoesNotReplanButNewWaypointsDo/1
+5: [       OK ] NavigationTrees/PathPolicy.PruningPassedWaypointsDoesNotReplanButNewWaypointsDo/1 (33 ms)
+5: [----------] 14 tests from NavigationTrees/PathPolicy (361 ms total)
+5: 
+5: [----------] Global test environment tear-down
+5: [==========] 14 tests from 1 test suite ran. (361 ms total)
+5: [  PASSED  ] 13 tests.
+5: [  SKIPPED ] 1 test, listed below:
+5: [  SKIPPED ] NavigationTrees/PathPolicy.PruningPassedWaypointsDoesNotReplanButNewWaypointsDo/0
+5: -- run_test.py: return code 0
+5: -- run_test.py: inject classname prefix into gtest result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_path_cache_bt.gtest.xml'
+5: -- run_test.py: verify result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_path_cache_bt.gtest.xml'
+5/7 Test #5: test_path_cache_bt ...............   Passed    0.42 sec
+test 6
+    Start 6: test_clearance_critic
+
+6: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_clearance_critic.gtest.xml" "--package-name" "ranger_nav_plugins" "--output-file" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/ament_cmake_gtest/test_clearance_critic.txt" "--command" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_clearance_critic" "--gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_clearance_critic.gtest.xml"
+6: Working Directory: /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+6: Test timeout computed to be: 60
+6: -- run_test.py: invoking following command in '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins':
+6:  - /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_clearance_critic --gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_clearance_critic.gtest.xml
+6: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+6: [==========] Running 1 test from 1 test suite.
+6: [----------] Global test environment set-up.
+6: [----------] 1 test from ClearanceCritic
+6: [ RUN      ] ClearanceCritic.CloseCornerCannotBeHiddenByFreeEndpoint
+6: [       OK ] ClearanceCritic.CloseCornerCannotBeHiddenByFreeEndpoint (0 ms)
+6: [----------] 1 test from ClearanceCritic (0 ms total)
+6: 
+6: [----------] Global test environment tear-down
+6: [==========] 1 test from 1 test suite ran. (0 ms total)
+6: [  PASSED  ] 1 test.
+6: -- run_test.py: return code 0
+6: -- run_test.py: inject classname prefix into gtest result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_clearance_critic.gtest.xml'
+6: -- run_test.py: verify result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_clearance_critic.gtest.xml'
+6/7 Test #6: test_clearance_critic ............   Passed    0.06 sec
+test 7
+    Start 7: test_feasible_model
+
+7: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_feasible_model.gtest.xml" "--package-name" "ranger_nav_plugins" "--output-file" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/ament_cmake_gtest/test_feasible_model.txt" "--command" "/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_feasible_model" "--gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_feasible_model.gtest.xml"
+7: Working Directory: /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins
+7: Test timeout computed to be: 60
+7: -- run_test.py: invoking following command in '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins':
+7:  - /tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_feasible_model --gtest_output=xml:/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_feasible_model.gtest.xml
+7: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+7: [==========] Running 4 tests from 3 test suites.
+7: [----------] Global test environment set-up.
+7: [----------] 1 test from ReversalHandoff
+7: [ RUN      ] ReversalHandoff.OnlyRequestsAlignmentAtAnUnreleasedCusp
+7: [       OK ] ReversalHandoff.OnlyRequestsAlignmentAtAnUnreleasedCusp (0 ms)
+7: [----------] 1 test from ReversalHandoff (0 ms total)
+7: 
+7: [----------] 2 tests from SteeringFeedback
+7: [ RUN      ] SteeringFeedback.PivotAndLateralSteeringRemainFresh
+7: [       OK ] SteeringFeedback.PivotAndLateralSteeringRemainFresh (0 ms)
+7: [ RUN      ] SteeringFeedback.MissingOrNonfiniteWheelFeedbackIsRejected
+7: [       OK ] SteeringFeedback.MissingOrNonfiniteWheelFeedbackIsRejected (0 ms)
+7: [----------] 2 tests from SteeringFeedback (0 ms total)
+7: 
+7: [----------] 1 test from FeasibleAckermann
+7: [ RUN      ] FeasibleAckermann.SamplesAndPredictionShareLimits
+7: [       OK ] FeasibleAckermann.SamplesAndPredictionShareLimits (35 ms)
+7: [----------] 1 test from FeasibleAckermann (35 ms total)
+7: 
+7: [----------] Global test environment tear-down
+7: [==========] 4 tests from 3 test suites ran. (35 ms total)
+7: [  PASSED  ] 4 tests.
+7: -- run_test.py: return code 0
+7: -- run_test.py: inject classname prefix into gtest result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_feasible_model.gtest.xml'
+7: -- run_test.py: verify result file '/tmp/ranger-regression-W8QgbJ/build/ranger_nav_plugins/test_results/ranger_nav_plugins/test_feasible_model.gtest.xml'
+7/7 Test #7: test_feasible_model ..............   Passed    0.19 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Label Time Summary:
+gtest    =   0.90 sec*proc (7 tests)
+
+Total Test time (real) =   0.90 sec
+Finished <<< ranger_nav_plugins [0.93s]
+
+Summary: 1 package finished [1.03s]
+Summary: 76 tests, 0 errors, 0 failures, 1 skipped

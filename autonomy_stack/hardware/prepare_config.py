@@ -12,6 +12,11 @@ import xml.etree.ElementTree as ET
 import yaml
 
 
+# Hardware envelope selected in the local setup, centered on ranger_base_link.
+# This is configuration, not a measurement of the complete robot/payload.
+HARDWARE_FOOTPRINT = '[[0.369,0.250],[0.369,-0.250],[-0.369,-0.250],[-0.369,0.250]]'
+
+
 def convert(value):
     if isinstance(value, dict):
         result = {k: convert(v) for k, v in value.items()}
@@ -39,6 +44,8 @@ def prepare(source, destination):
                      'amcl_sim.yaml', 'slam_sim.yaml'):
         data = convert(yaml.safe_load((source / filename).read_text()))
         if filename == 'navigation_common.yaml':
+            for costmap in ('local_costmap', 'global_costmap'):
+                data[costmap][costmap]['ros__parameters']['footprint'] = HARDWARE_FOOTPRINT
             bt = data['bt_navigator']['ros__parameters']
             # Jazzy automatically registers the standard Nav2 BT libraries.
             bt['plugin_lib_names'] = ['ranger_path_cache_bt']

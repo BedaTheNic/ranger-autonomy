@@ -86,7 +86,7 @@ local_costmap:
       publish_frequency: 2.0
       resolution: 0.05
       footprint: '[[0.32,0.30],[0.32,-0.30],[-0.32,-0.30],[-0.32,0.30]]'
-      footprint_padding: 0.02
+      footprint_padding: 0.0
       plugins:
       - obstacle_layer
       - inflation_layer
@@ -127,7 +127,7 @@ global_costmap:
       publish_frequency: 2.0
       resolution: 0.05
       footprint: '[[0.32,0.30],[0.32,-0.30],[-0.32,-0.30],[-0.32,0.30]]'
-      footprint_padding: 0.02
+      footprint_padding: 0.0
       plugins:
       - static_layer
       - obstacle_layer

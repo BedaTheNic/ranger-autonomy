@@ -22,8 +22,8 @@ public:
     if(expose_validity) {validity_=std::make_unique<RetainedPathService>(parent.lock(),map,planning_padding);}
   }
   void cleanup() override {validity_.reset(); SmacPlannerLattice::cleanup();}
-  double search_padding{.025};
-  double planning_padding{.04};
+  double search_padding{0.0};
+  double planning_padding{0.0};
   double goal_connection_distance{.25};
   nav_msgs::msg::Path createPlan(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal
@@ -136,7 +136,7 @@ public:
       // Shortcuts are optional. Keep an extra cell where possible so a new
       // LiDAR observation does not immediately consume the tracking reserve.
       auto shortcut_footprint=search_footprint;
-      nav2_costmap_2d::padFootprint(shortcut_footprint,_costmap->getResolution());
+      if(use_expanded) {nav2_costmap_2d::padFootprint(shortcut_footprint,_costmap->getResolution());}
       route=shortcutHolonomic(entry,*_costmap,shortcut_footprint,[&]() {
 #ifdef RANGER_NAV2_JAZZY
         if(cancel_checker()) {throw nav2_core::PlannerCancelled("Planning canceled");}
@@ -166,6 +166,7 @@ public:
       throw std::runtime_error("Lattice edge outside reserve at "+std::to_string(invalid.x)+","+
         std::to_string(invalid.y)+","+std::to_string(invalid.a));
     };
+    if(search_padding==0.0) {return search(false);}
     try {
       return search(true);
 #ifdef RANGER_NAV2_JAZZY

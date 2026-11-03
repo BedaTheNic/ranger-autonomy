@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "image": "ranger-autonomy:jazzy-r5.2",
+  "network": "internal Docker bridge",
+  "physical_robot": false
+}

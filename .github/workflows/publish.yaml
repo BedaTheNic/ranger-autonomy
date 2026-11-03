@@ -6,7 +6,7 @@ on:
       tag:
         description: Image release tag
         required: true
-        default: jazzy-r5.1
+        default: jazzy-r5.2
   push:
     tags: ['jazzy-*']
   pull_request:
@@ -123,10 +123,12 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}:$tag"
           printf '%s\n' \
             "Ranger Mini ROS 2 Jazzy adaptive navigation with structured logging." \
+            "Hardware footprint: 0.738 x 0.500 m; costmap/planning/lattice padding: 0.0 m." \
+            "Includes the receive-only CAN steering feedback container for adaptive navigation." \
             "" "Container image: \`$image\` (linux/amd64, matching the robot)." \
             "" "Download and extract ranger-hardware-deploy.tar.gz on the robot Docker host." \
             "The archive includes a non-secret .env preset for this release, Compose and robot.sh." \
-            "" '```bash' 'bash robot.sh pull' 'bash robot.sh external' 'bash robot.sh check' '```' \
+            "" '```bash' 'bash robot.sh pull' 'bash robot.sh external' 'bash robot.sh steering-check' 'bash robot.sh check' '```' \
             "" "external uses the existing robot SLAM. For our SLAM, stop the existing SLAM only and run bash robot.sh mapping." \
             "" "The optional drive gateway starts disarmed; run bash drive.sh up, then explicitly arm before sending a new goal." \
             "Adaptive/Ackermann control still requires verified measured steering feedback. Other /cmd_vel publishers are permitted; arbitration is not implemented." \
