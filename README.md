@@ -18,10 +18,10 @@ instructions for the current update and diagnostic procedures.
 
 ## Deploy on the robot
 
-After the `jazzy-r5` workflow has completed, download the release deployment bundle:
+After the `jazzy-r5.1` workflow has completed, download the release deployment bundle:
 
 ```bash
-curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r5/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
+curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r5.1/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
 tar -xzf ranger-hardware-deploy.tar.gz
 cd ranger-hardware
 bash robot.sh pull
@@ -30,7 +30,7 @@ bash robot.sh check
 ```
 
 The bundle includes a non-secret `.env` preset. The image is
-`ghcr.io/bedathenic/ranger-autonomy:jazzy-r5`, for the robot’s amd64 architecture.
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.1`, for the robot’s amd64 architecture.
 For a private GHCR package, first run `docker login ghcr.io -u BedaTheNic` on the robot.
 No source checkout or build is needed on the robot.
 
@@ -49,7 +49,7 @@ holonomic motion test passed on the robot; full adaptive/Ackermann navigation
 still requires verified measured steering feedback and physical calibration.
 The gateway permits other `/cmd_vel` publishers; arbitration is not implemented.
 
-`jazzy-r5` rebuilds the latest local planning, tracking, wheel-control and
+`jazzy-r5.1` rebuilds the latest local planning, tracking, wheel-control and
 logging sources. It includes validated raw/smoothed Hybrid routes, retained-path
 validation and local repair, and a separate `ranger_hero_motion-guard` container
 for the developed stopping-distance checks. The gateway's former 0.05 m/s and

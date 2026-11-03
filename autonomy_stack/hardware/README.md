@@ -195,7 +195,7 @@ The host needs Docker Engine and Buildx; it does not need a ROS installation.
 For a native amd64 local build:
 
 ```bash
-bash release.sh build ranger-autonomy:jazzy-r5
+bash release.sh build ranger-autonomy:jazzy-r5.1
 ```
 
 Only `linux/amd64` is built, matching the robot diagnostics. This amd64
@@ -205,18 +205,18 @@ Log in to the registry, using your GHCR token when prompted for a password:
 
 ```bash
 docker login ghcr.io -u BedaTheNic
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r5
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.1
 ```
 
 The default build and publication target is `linux/amd64`, the real robot's
 architecture. For another registry, change the image reference to, for example,
-`docker.io/USER/ranger-autonomy:jazzy-r5` or
-`registry.example.com/TEAM/ranger-autonomy:jazzy-r5`, and log in to that
+`docker.io/USER/ranger-autonomy:jazzy-r5.1` or
+`registry.example.com/TEAM/ranger-autonomy:jazzy-r5.1`, and log in to that
 registry. Additional tags or registries can follow the platform argument:
 
 ```bash
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r5 \
-  linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r5
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.1 \
+  linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r5.1
 ```
 
 The build context is the parent directory containing `autonomy_stack`,
@@ -226,7 +226,7 @@ The build context is the parent directory containing `autonomy_stack`,
 
 The exported repository includes `.github/workflows/publish.yaml`. On GitHub,
 open Actions → Verify and publish Ranger autonomy → Run workflow, and enter
-`jazzy-r5` as the tag. Alternatively, push the Git tag `jazzy-r5`.
+`jazzy-r5.1` as the tag. Alternatively, push the Git tag `jazzy-r5.1`.
 
 The workflow first builds the amd64 image and runs the original C++/logger
 regressions and isolated adaptive planning/logging integration test. If they
@@ -380,7 +380,7 @@ state, stale odometry, and missing steering feedback in the adaptive profile.
 
 ### Upgrade and Ackermann diagnostics
 
-`jazzy-r5` includes the latest local planner, tracking, wheel-control and
+`jazzy-r5.1` includes the latest local planner, tracking, wheel-control and
 logging changes: validated Hybrid smoothing, retained-path validation and
 repair, route clearance/alignment updates, and a separate stopping-distance
 motion guard. The drive gateway no longer imposes a maximum speed. Controller
@@ -394,8 +394,8 @@ also adds the `motion-guard` service to Compose. Then, while stationary:
 
 ```bash
 bash drive.sh disarm
-cp -p .env ".env.before-r5.$(date +%Y%m%d_%H%M%S)"
-sed -i 's|^AUTONOMY_IMAGE=.*|AUTONOMY_IMAGE=ghcr.io/bedathenic/ranger-autonomy:jazzy-r5|' .env
+cp -p .env ".env.before-r5.1.$(date +%Y%m%d_%H%M%S)"
+sed -i 's|^AUTONOMY_IMAGE=.*|AUTONOMY_IMAGE=ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.1|' .env
 bash robot.sh pull
 bash robot.sh external
 bash drive.sh up
@@ -561,7 +561,7 @@ safety. Maps and logs remain after shutdown. For a new release, change the
 image tag in `.env`, then repeat `pull` and the selected startup mode.
 
 The amd64 build, startup, planning, and structured logging have been validated
-locally. The `jazzy-r4` image was verified in GHCR. The new `jazzy-r5` release
+locally. The `jazzy-r4` image was verified in GHCR. The new `jazzy-r5.1` release
 uses the same tested build/publish workflow. The initial physical holonomic motion test was
 reported successful. Full physical adaptive/Ackermann navigation, wheel
 feedback mapping, and physical limits still require validation on the robot.

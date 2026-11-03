@@ -2,7 +2,7 @@ name: ranger-drive
 services:
   drive-guard:
     container_name: ranger_hero_drive-guard
-    image: ${AUTONOMY_IMAGE:-ghcr.io/bedathenic/ranger-autonomy:jazzy-r5}
+    image: ${AUTONOMY_IMAGE:-ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.1}
     network_mode: host
     ipc: private
     init: true

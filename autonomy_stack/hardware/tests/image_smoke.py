@@ -19,6 +19,7 @@ from tf2_ros import StaticTransformBroadcaster
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import ComputePathToPose, FollowPath
 from nav2_msgs.srv import IsPathValid
+from std_srvs.srv import Trigger
 
 profile=sys.argv[1] if len(sys.argv)>1 else 'adaptive'
 external='--external' in sys.argv
@@ -71,9 +72,23 @@ try:
   p=subprocess.Popen(['/opt/autonomy/entrypoint.sh','ros2','launch','/opt/autonomy/launch/component.launch.py','component:='+component],stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
   processes.append(p)
  clients={name:node.create_client(GetState,'/'+name+'/get_state') for name in ('planner_server','controller_server','behavior_server','bt_navigator')}
+ manager=node.create_client(Trigger,'/lifecycle_manager_navigation/is_active')
+ bringup=None;bringup_sent=0.;manager_active=False
  pending={};active=set();deadline=time.monotonic()+70
  while time.monotonic()<deadline and (len(active)<4 or not received_scan):
   rclpy.spin_once(node,timeout_sec=.1)
+  # Let the lifecycle manager finish its own transitions before this fixture
+  # issues GetState requests to the same nodes. Configuration can spend many
+  # seconds warming the Hybrid heuristic on a small CI runner.
+  if not manager_active:
+   if bringup is not None and bringup.done():
+    manager_active=bool(bringup.result() and bringup.result().success);bringup=None
+   elif bringup is not None and time.monotonic()-bringup_sent>2:
+    manager.remove_pending_request(bringup);bringup.cancel();bringup=None
+   if not manager_active:
+    if bringup is None and manager.service_is_ready():
+     bringup=manager.call_async(Trigger.Request());bringup_sent=time.monotonic()
+    continue
   for name,client in clients.items():
    if name in active:continue
    if name in pending and pending[name].done():
