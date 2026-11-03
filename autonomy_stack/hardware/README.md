@@ -1,124 +1,137 @@
-# Ranger autonomy — stvarni robot, ROS 2 Jazzy
+# Ranger autonomy — real robot, ROS 2 Jazzy
 
-Ovaj deployment pakira lokalno razvijeni adaptivni autonomy stack i njegov
-`ranger_logging`. Kanonski izvori su `ugv_sim/ranger/ranger_nav_plugins`,
-`ugv_sim/ranger/ranger_mini/config` i `ugv_sim/ranger/ranger_logging`.
-Dockerfile preuzima te datoteke izravno. Manifest SHA-256 ulaza nalazi se u
-imageu na `/opt/autonomy/source-manifest.json`.
+This deployment packages the locally developed adaptive autonomy stack and its
+`ranger_logging` package. The canonical sources are
+`ugv_sim/ranger/ranger_nav_plugins`, `ugv_sim/ranger/ranger_mini/config`, and
+`ugv_sim/ranger/ranger_logging`. The Dockerfile copies these files directly.
+A SHA-256 manifest of the build inputs is included in the image at
+`/opt/autonomy/source-manifest.json`.
 
-Zadržano ponašanje: izbor Hybrid-A*/Lattice putanje prema ETA, MPPI za
-Ackermann dionice, DWB za holonomske dionice, provjera footprinta, planirani
-zakreti, završni holonomski prilaz i zadržavanje valjanog globalnog plana.
-Nova prepreka/neizvediva putanja, novi cilj ili neuspjelo praćenje mogu pokrenuti
-novi plan. Migracija na Jazzy mijenja API-je, nazive pluginova i BT format;
-ne zamjenjuje vlastite kontrolere standardnim Nav2 primjerom.
+The stack retains Hybrid-A*/Lattice route selection, MPPI for Ackermann
+segments, DWB for holonomic segments, footprint checks, planned rotations,
+the final holonomic approach, and reuse of a valid global plan. In `jazzy-r4`,
+the shortest feasible route is selected, with ETA breaking numerical ties.
+A new obstacle, an infeasible path, a new goal, or failed tracking can trigger
+replanning. The Jazzy migration adapts APIs, plugin names, and the behavior-tree
+format while retaining the custom controllers.
 
-Detalji ponašanja i ranijih provjera su u `ranger_navigation_startup/ADAPTIVE_NAVIGATION.md`
-i `LOGGING.md` (u izvezenom GitHub projektu: `docs/`). Ti dokumenti sadrže i
-poznate neuspjele simulacijske pokuse; oni nisu potvrda fizičke navigacije.
+Behavior details and earlier validation results are documented in
+`ranger_navigation_startup/ADAPTIVE_NAVIGATION.md` and `LOGGING.md`
+(under `docs/` in the exported GitHub project). Those documents also include
+known failed simulation trials; they do not establish physical navigation
+performance.
 
-## Kontejneri
+## Containers
 
-Svaki red predstavlja zaseban kontejner s jednim aplikacijskim ROS procesom.
-Svi koriste isti image; ne gradi se druga kopija imagea za svaki servis.
-Vidljivi nazivi su `ranger_hero_planner`, `ranger_hero_controller`,
-`ranger_hero_rviz-web`, `ranger_hero_drive-guard` i odgovarajući naziv ostalih
-servisa. Compose projekti ostaju isti radi prepoznavanja već pokrenutih servisa.
+Each row represents a separate container with one application ROS process.
+The navigation services share the same image; there is no separate image build
+for each service. Container names include `ranger_hero_planner`,
+`ranger_hero_controller`, `ranger_hero_rviz-web`, `ranger_hero_drive-guard`,
+and the corresponding names for other services. Compose project names remain
+the same so existing services can still be identified.
 
-| Servis | Proces / uloga | Kada radi |
+| Service | Process / role | When it runs |
 |---|---|---|
-| planner | planner_server, AdaptivePlanner | uvijek |
-| controller | controller_server, AdaptiveController MPPI/DWB | uvijek |
-| behaviors | behavior_server | uvijek |
-| bt-navigator | bt_navigator, vlastiti BT | uvijek |
-| navigation-lifecycle | Nav2 lifecycle manager | uvijek |
-| telemetry | ranger_logging, pasivna telemetrija | uvijek |
+| planner | planner_server, AdaptivePlanner | always |
+| controller | controller_server, AdaptiveController MPPI/DWB | always |
+| behaviors | behavior_server | always |
+| bt-navigator | bt_navigator, custom behavior tree | always |
+| navigation-lifecycle | Nav2 lifecycle manager | always |
+| telemetry | ranger_logging, passive telemetry | always |
 | slam | SLAM Toolbox | mapping |
-| slam-lifecycle | lifecycle manager za SLAM | mapping |
+| slam-lifecycle | SLAM lifecycle manager | mapping |
 | map-server | map_server | localization |
 | amcl | AMCL | localization |
-| localization-lifecycle | manager za map_server/AMCL | localization |
-| scan-adapter | PointCloud2 → LaserScan | opcionalno |
-| velocity-smoother | velocity_smoother | samostalni ackermann profil |
-| command-guard | završne Ackermann granice | samostalni ackermann profil |
+| localization-lifecycle | map_server/AMCL lifecycle manager | localization |
+| scan-adapter | PointCloud2 → LaserScan | optional |
+| velocity-smoother | velocity_smoother | standalone ackermann profile |
+| command-guard | final Ackermann command limits | standalone ackermann profile |
 
-Launch/konzolni omotač u svakom servisu bilježi njegove procese. Samo jedan
-`telemetry` kontejner snima zajedničke ROS topice. Postojeći driveri baze,
-Livoxa, robot_state_publisher i ostale aplikacije robota ostaju u postojećem
-robotovom deploymentu. Novi stack ne pokreće Gazebo niti drugi EKF.
+Each service's launch/console wrapper records its processes. A single
+`telemetry` container records the shared ROS topics. The existing base and
+Livox drivers, robot_state_publisher, and other robot applications remain in
+the existing robot deployment. This stack starts neither Gazebo nor a second
+EKF.
 
-## Potvrđeni podaci robota
+## Confirmed robot configuration
 
-Dijagnostika `robot_diagnostics_20261102_104903__0bzdr18.tar.gz` potvrđuje:
+The diagnostic archive `robot_diagnostics_20261102_104903__0bzdr18.tar.gz`
+confirms:
 
-- ROS 2 Jazzy, Ubuntu 24.04, x86_64/amd64, ROS domena **9**.
-- `/livox/lidar`: PointCloud2, oko 10 Hz, frame `livox_frame`.
-- `/livox/imu`: Imu, približno 200 Hz; jedinice i kalibracija još nisu potvrđene.
-- `/odom`: Odometry, oko 50 Hz, `odom → ranger_base_link`.
-- Postojeći TF do LiDAR-a: `(0.288, -0.007, 0.046)` m i yaw `+90°`.
-- Postojeći `/scan`, `/scan_obstacles`, `/slam_toolbox`, `/map` i `map → odom`.
-- `/ranger_base_node` prima `/cmd_vel` tipa Twist. Na taj ulaz već objavljuju
-  teleop, spray_executor_node i kinova_state_machine_node.
+- ROS 2 Jazzy, Ubuntu 24.04, x86_64/amd64, ROS domain **9**.
+- `/livox/lidar`: PointCloud2, approximately 10 Hz, frame `livox_frame`.
+- `/livox/imu`: Imu, approximately 200 Hz; units and calibration are not yet verified.
+- `/odom`: Odometry, approximately 50 Hz, `odom → ranger_base_link`.
+- Existing LiDAR TF: translation `(0.288, -0.007, 0.046)` m and yaw `+90°`.
+- Existing `/scan`, `/scan_obstacles`, `/slam_toolbox`, `/map`, and `map → odom`.
+- `/ranger_base_node` subscribes to `/cmd_vel` as Twist. Teleop,
+  spray_executor_node, and kinova_state_machine_node already publish to that input.
 
-Costmape koriste `/scan_obstacles` (`range_min≈0.4 m`); lokalizacija `/scan`
-(`range_min=1.0 m`). Ne objavljujemo još jedan LiDAR TF.
+Costmaps use `/scan_obstacles` (`range_min≈0.4 m`); localization uses `/scan`
+(`range_min=1.0 m`). This deployment does not publish a duplicate LiDAR TF.
 
-Naknadna provjera procesa na robotu potvrdila je domenu 9 i stvarno učitanu
-biblioteku `librmw_fastrtps_cpp.so` za bazu i Livox. Postojeći kontejner
-`ranger_hero_jazzy` koristi `Network=host`, `IPC=private`. Naši Fast DDS procesi
-zato zadano koriste `FASTDDS_BUILTIN_TRANSPORTS=UDPv4`; postojeći kontejner se
-ne mora ponovno stvarati ili gasiti. Varijabla je u zajedničkom Compose
-okruženju svih naših servisa. Sam dodatan zapis u `.env` bez prosljeđivanja kroz
-Compose ne bi bio dovoljan. Ako koristiš vlastiti Fast DDS XML koji isključuje
-builtin transporte, provjeri i njegovu konfiguraciju.
+Subsequent process inspection on the robot confirmed domain 9 and the loaded
+`librmw_fastrtps_cpp.so` library for the base and Livox drivers. The existing
+`ranger_hero_jazzy` container uses `Network=host`, `IPC=private`. Our Fast DDS
+processes therefore default to `FASTDDS_BUILTIN_TRANSPORTS=UDPv4`; the existing
+container does not need to be recreated or stopped. The variable is passed
+through the common Compose environment to all our services. Adding it to
+`.env` alone, without passing it through Compose, would not be sufficient.
+If you use custom Fast DDS XML that disables built-in transports, check that
+configuration as well.
 
-Deployment arhiva `jazzy-r3` objavljena je prije ove provjere IPC-a. Za nju je
-dovoljno preuzeti aktualni `autonomy_stack/hardware/compose.yaml` iz repozitorija
-u lokalni deployment direktorij. Image ostaje `jazzy-r3`; promjena je samo u
-Compose okruženju. Pokrenute naše kontejnere treba ponovno stvoriti naredbom
-`bash robot.sh external` (ili odabranim mapping/localization načinom).
+The original `jazzy-r3` deployment archive predates this IPC check. That
+installation can receive the networking fix by downloading the current
+`autonomy_stack/hardware/compose.yaml` into its deployment directory. The
+`jazzy-r3` image itself does not need rebuilding for this Compose environment
+change. Recreate our running containers with `bash robot.sh external`
+(or your selected mapping/localization mode).
 
-**Adaptivni profil je zadan.** Za Ackermann dio potrebni su svježi izmjereni
-kutovi `fl_steering_wheel`, `fr_steering_wheel`, `rl_steering_wheel`,
-`rr_steering_wheel` u JointState poruci. `STEERING_FEEDBACK_TOPIC` određuje ulaz.
-Sama prisutnost `/joint_states` nije dovoljna: poruke mogu sadržavati samo
-zglobove Kinove. Nije dodana zamjena mjerenja procijenjenim kutovima iz naredbi.
+**The adaptive profile is the default.** Its Ackermann controller requires
+fresh measured angles for `fl_steering_wheel`, `fr_steering_wheel`,
+`rl_steering_wheel`, and `rr_steering_wheel` in JointState messages.
+`STEERING_FEEDBACK_TOPIC` selects the input. The presence of `/joint_states`
+alone is insufficient: it may contain only Kinova joints. Command-derived
+angle estimates are not substituted for measured feedback.
 
-Provjera na robotu potvrdila je prijem svih senzora i traženih TF veza iz našeg
-kontejnera. Jedina neuspjela stavka bila je izmjerena povratna informacija
-upravljanja: `/joint_states` sadrži Kinovu. Driver je konfiguriran za
-`ranger_mini_v3` i objavljuje `/actuator_state`; svih osam zapisa u jednom
-uzorku ponavlja iste vrijednosti. To samo po sebi, dok robot miruje, ne dokazuje
-grešku drivera niti potvrđuje četiri neovisna kuta.
+The robot check confirmed reception of all sensors and required TF links
+inside our container. The only failed item was measured steering feedback:
+`/joint_states` contains Kinova joints. The driver is configured for
+`ranger_mini_v3` and publishes `/actuator_state`; all eight entries in one
+sample repeated the same values. A stationary sample alone neither proves a
+driver fault nor confirms four independent angles.
 
-Za pasivan pregled izvora postojećeg drivera i CAN feedbacka pokreni na hostu:
+For a passive inspection of the existing driver source and CAN feedback, run
+on the robot host:
 
 ```bash
 docker exec -i ranger_hero_jazzy python3 - < inspect_drive.py > ranger-drive-details.json
 ```
 
-`inspect_drive.py` radi unutar već pokrenutog kontejnera, koristi Pythonovu
-standardnu biblioteku i ne treba ROS setup. Čita samo odabrane C++ datoteke,
-putanje aktivnog drivera i do 8 sekundi standardnih CAN poruka `0x200..0x2ff`
-na postojećem `can0`. Ne piše u taj kontejner, ne mijenja CAN sučelje, ne
-šalje naredbe, ne pokreće drugi driver i ne dekodira pretpostavljeni redoslijed
-kotača. Nedostupan izvor ili CAN pristup ostaje zabilježen u JSON-u. Pregled
-izvora na disku ne potvrđuje da je upravo iz njega izgrađen aktivni binary.
-Skripta se može preuzeti zasebno iz ovog direktorija bez nove verzije imagea;
-stara arhiva `jazzy-r3` još je ne sadrži.
+`inspect_drive.py` runs inside the existing container, uses only Python's
+standard library, and requires no ROS setup. It reads selected C++ files,
+active driver paths, and up to eight seconds of standard CAN messages
+`0x200..0x2ff` from the existing `can0`. It does not write inside that
+container, modify the CAN interface, send commands, start another driver, or
+assume a physical wheel order. Missing source files or CAN access are recorded
+in the JSON report. Inspecting source files on disk does not establish that
+the running binary was built from those files. The script can be downloaded
+separately from this directory without rebuilding the image; the original
+`jazzy-r3` archive does not include it.
 
-**Ispravak CAN dijagnostike:** prvotna skripta (`schema: 1`) pogrešno je imala
-`CAN_ERR_FLAG` u receive maski. Linux tada odabire listu error frameova, pa
-prazan capture ne govori ništa o dostupnosti standardnog CAN feedbacka.
-Ispravljena skripta (`schema: 2`) koristi `CAN_EFF_FLAG | CAN_RTR_FLAG | 0x700`,
-a zastavice dodatno provjerava nakon primitka. Već prikupljen izvor drivera je
-upotrebljiv: na robotu je potvrđen kod koji svim zapisima dodjeljuje `angle_5`
-i podatke aktuatora 0. Aktivni binary nije povezan s izvornim kodom dokazom
-builda, a neovisni kutovi na CAN-u još se trebaju potvrditi ponovnom provjerom.
+**CAN diagnostic correction:** the initial script (`schema: 1`) incorrectly
+included `CAN_ERR_FLAG` in its receive mask. Linux then selects the error-frame
+receive list, so an empty capture says nothing about standard CAN feedback.
+The corrected script (`schema: 2`) uses
+`CAN_EFF_FLAG | CAN_RTR_FLAG | 0x700` and also validates flags after reception.
+The previously collected driver source remains useful: code found on the
+robot assigns `angle_5` and actuator 0 data to every entry. There is no build
+provenance linking that source to the running binary. Independent CAN angles
+still need to be confirmed with a new capture.
 
-Regresija koristi stvarni Linux SocketCAN i vlastiti virtualni CAN u potpuno
-odvojenoj mreži. Ne pokreće se izravno na robotu. Iz korijena repozitorija,
-s već izgrađenim lokalnim imageom:
+The regression uses real Linux SocketCAN and its own virtual CAN interface
+in a fully isolated network. Do not run it directly on the robot. From the
+repository root, with a locally built image:
 
 ```bash
 docker run --rm --network none --cap-add NET_ADMIN \
@@ -126,36 +139,42 @@ docker run --rm --network none --cap-add NET_ADMIN \
   --entrypoint python3 ranger-autonomy:jazzy-r3 /test/tests/inspect_drive_can.py
 ```
 
-Test odbija rad ako u mrežnom namespaceu već postoji sučelje osim loopbacka.
-Za njega host kernel mora podržavati `vcan`. Stari filter reproducira gubitak
-poruka, a ispravljeni mora primiti sve testne poruke i odbaciti druge ID-eve,
-extended i RTR frameove. Ovaj test nije potvrda kalibracije fizičkih kotača.
+The test refuses to run if any interface other than loopback already exists
+in its network namespace. The host kernel must support `vcan`. The old
+filter reproduces message loss; the corrected filter must receive all test
+messages and reject other IDs, extended frames, and RTR frames. This test
+does not validate physical wheel calibration.
 
-Nav2 izlaz ostaje `/cmd_vel_nav`. Za fizičku vožnju još treba povezati izbor
-izvora naredbi, timeout i zaustavljanje s postojećim pogonom, provjeriti
-izmjerenu povratnu informaciju kotača i stvarni footprint uključujući opremu.
-Početne granice i footprint su naslijeđeni iz razvijenog stacka, ne izmjereni
-na ovoj konfiguraciji fizičkog robota. Na amd64 vlastiti MPPI zahtijeva AVX2/FMA.
+Nav2 outputs `/cmd_vel_nav`. The optional drive gateway described below
+connects it to the existing `/cmd_vel` input with command timeout handling.
+Command-source arbitration, measured wheel feedback, and the physical
+footprint including mounted equipment still require integration or validation.
+The initial limits and footprint come from the developed stack and were not
+measured on this physical robot configuration. The custom amd64 MPPI build
+requires AVX2/FMA.
 
-## Izvorni paket za GitHub
+## Standalone source package for GitHub
 
-Repozitorij je predviđen kao `BedaTheNic/ranger-autonomy`, a image kao
-`ghcr.io/bedathenic/ranger-autonomy`. Imageovi i deployment arhive objavljuju se u GHCR i GitHub Releases nakon
-uspješnog workflowa.
+The intended repository is `BedaTheNic/ranger-autonomy`, with images under
+`ghcr.io/bedathenic/ranger-autonomy`. Images and deployment archives are
+published to GHCR and GitHub Releases after a successful workflow.
 
-Iz direktorija `autonomy_stack/hardware`:
+From `autonomy_stack/hardware`:
 
 ```bash
 bash release.sh source "$PWD/dist/github-source"
 ```
 
-Ako ta mapa već postoji, odaberi drugi naziv; izvoz ne prepisuje stare pakete.
+If that directory already exists, choose another name; export does not
+overwrite an existing package.
 
-Izvoz kopira samo potrebne pakete, konfiguracije, testove i dokumentaciju.
-Ne uključuje lokalne karte, logove, .env, Git metapodatke ili dijagnostičku
-arhivu. Ne stvara Git submoduleove: novi repo može se izgraditi samostalno.
+The export copies only required packages, configurations, tests, and
+documentation. It excludes local maps, logs, `.env`, Git metadata, and
+diagnostic archives. It creates no Git submodules: the exported repository
+builds independently.
 
-Na GitHubu napravi prazan repozitorij `ranger-autonomy`, pa na ovom računalu:
+For a new repository, create an empty `ranger-autonomy` repository on GitHub,
+then run on this computer:
 
 ```bash
 cd dist/github-source
@@ -166,154 +185,165 @@ git remote add origin https://github.com/BedaTheNic/ranger-autonomy.git
 git push -u origin main
 ```
 
-Git za push mora biti prijavljen kao vlasnik repozitorija. Ne koristi se remote
-postojećeg `ugv_sim`, koji pokazuje na upstream AgileX repozitorij.
+Git must be authenticated as the repository owner to push. Do not use the
+existing `ugv_sim` remote, which points to the upstream AgileX repository.
 
-### Opcija A: build na ovom računalu, objava imagea u GHCR
+### Option A: build on this computer and publish to GHCR
 
-Host treba Docker Engine i Buildx; ROS instalacija na hostu nije potrebna.
-Za native amd64 lokalni build:
+The host needs Docker Engine and Buildx; it does not need a ROS installation.
+For a native amd64 local build:
 
 ```bash
 bash release.sh build ranger-autonomy:jazzy-r4
 ```
 
-Gradi se samo `linux/amd64`, prema dijagnostici robota. Na ovom amd64
-računalu nisu potrebni QEMU ni ARM build.
+Only `linux/amd64` is built, matching the robot diagnostics. This amd64
+computer needs neither QEMU nor an ARM build.
 
-Prijavi se u registry (pri upitu za lozinku koristi svoj GHCR token):
+Log in to the registry, using your GHCR token when prompted for a password:
 
 ```bash
 docker login ghcr.io -u BedaTheNic
 bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r4
 ```
 
-Zadano se gradi i objavljuje samo `linux/amd64`, arhitektura stvarnog robota.
-Za drugi registry promijeni referencu, npr. `docker.io/USER/ranger-autonomy:jazzy-r4`
-ili `registry.example.com/TEAM/ranger-autonomy:jazzy-r4`, i prijavi se u njega.
-Više tagova/registryja može se zadati nakon platformi:
+The default build and publication target is `linux/amd64`, the real robot's
+architecture. For another registry, change the image reference to, for example,
+`docker.io/USER/ranger-autonomy:jazzy-r4` or
+`registry.example.com/TEAM/ranger-autonomy:jazzy-r4`, and log in to that
+registry. Additional tags or registries can follow the platform argument:
 
 ```bash
 bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r4 \
   linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r4
 ```
 
-Build kontekst je nadređeni direktorij s `autonomy_stack`, `ugv_sim` i
-`ranger_ros2`. `release.sh` sam pronalazi taj direktorij.
+The build context is the parent directory containing `autonomy_stack`,
+`ugv_sim`, and `ranger_ros2`. `release.sh` locates that directory automatically.
 
-### Opcija B: GitHub Actions gradi i objavljuje
+### Option B: build and publish with GitHub Actions
 
-Izvezeni repo već sadrži `.github/workflows/publish.yaml`. Na GitHubu otvori
-Actions → Verify and publish Ranger autonomy → Run workflow, tag `jazzy-r4`.
-Alternativno objavi Git tag `jazzy-r4`.
+The exported repository includes `.github/workflows/publish.yaml`. On GitHub,
+open Actions → Verify and publish Ranger autonomy → Run workflow, and enter
+`jazzy-r4` as the tag. Alternatively, push the Git tag `jazzy-r4`.
 
-Workflow prvo gradi amd64 image, pokreće izvorne C++/logger regresije i izolirani
-adaptivni test planiranja/logiranja. Nakon prolaza objavljuje isti provjereni amd64 image u GHCR, bez ponovnog builda. Koristi repo `GITHUB_TOKEN` s `packages: write`; token se ne
-sprema u izvorni kod. Repo/org postavke moraju dopuštati Actions i taj pristup
-paketima. Deployment arhiva dostupna je kao workflow artifact
-`ranger-hardware-deploy` i, nakon objave imageova, kao GitHub Release asset.
-Arhiva sadrži i ne-tajni `.env` preset s image referencom tog releasea. Ovaj workflow ne gradi ARM varijantu.
+The workflow first builds the amd64 image and runs the original C++/logger
+regressions and isolated adaptive planning/logging integration test. If they
+pass, it publishes that exact tested amd64 image to GHCR without rebuilding.
+It uses the repository's `GITHUB_TOKEN` with `packages: write`; the token is
+not stored in source code. Repository or organization settings must allow
+Actions and the required package access. The deployment archive is available
+as the `ranger-hardware-deploy` workflow artifact and, after image publication,
+as a GitHub Release asset. It includes a non-secret `.env` preset referencing
+the release image. This workflow does not build ARM images.
 
-## Robot: samo pull i pokretanje
+## Robot: pull and run
 
-Na build računalu napravi deployment arhivu:
+On the build computer, create the deployment archive:
 
 ```bash
 bash release.sh bundle
 ```
 
-Prenesi `dist/ranger-hardware-deploy.tar.gz` na robot (ili preuzmi CI artifact).
-Na Docker hostu robota:
+Transfer `dist/ranger-hardware-deploy.tar.gz` to the robot, or download the CI
+artifact. On the robot's Docker host:
 
 ```bash
 tar -xzf ranger-hardware-deploy.tar.gz
 cd ranger-hardware
-# Deployment arhiva već sadrži .env; za izvorni checkout robot.sh ga stvara.
-# U .env provjeri AUTONOMY_IMAGE, domenu 9 i RMW.
-# Za privatni image prvo: docker login ghcr.io -u BedaTheNic
+# The deployment archive includes .env; robot.sh creates it for a source checkout.
+# Check AUTONOMY_IMAGE, domain 9, and RMW in .env.
+# For a private image, first run: docker login ghcr.io -u BedaTheNic
 bash robot.sh pull
 ```
 
-Image je izgrađen za robotovu amd64 arhitekturu. Na robotu nisu potrebni izvorni kod,
-colcon, Buildx ni build imagea.
+The image is built for the robot's amd64 architecture. The robot needs neither
+source code, colcon, Buildx, nor an image build.
 
-Ako želiš zadržati već pokrenuti SLAM s robota:
+To keep the robot's existing SLAM running:
 
 ```bash
 bash robot.sh external
 bash robot.sh check
 ```
 
-Za cijeli naš stack s vlastitim mapiranjem prvo kroz postojeći startup
-zaustavi **samo njegov SLAM**, uz zadržavanje senzora/TF-a/baze. Prethodno spremi
-postojeću kartu i posegraph ako ih želiš zadržati. Zatim:
+To use this stack's own mapping service, first stop **only the existing SLAM**
+through its current startup mechanism, keeping the sensors, TF, and base
+running. Save the existing map and posegraph first if you need to retain them.
+Then run:
 
 ```bash
 bash robot.sh mapping
 bash robot.sh check
 ```
 
-SLAM i AMCL ne smiju istodobno posjedovati `map → odom`. Skripta prebacuje samo
-servise vlastitog Compose projekta i ne gasi vanjski robotov kontejner.
+SLAM and AMCL must not both own `map → odom`. The helper switches only services
+in its own Compose project and does not stop the external robot container.
 
-Spremanje karte našeg SLAM-a:
+Save a map from this stack's SLAM:
 
 ```bash
 bash robot.sh ros slam ros2 run nav2_map_server map_saver_cli -f /maps/map
 ```
 
-Za AMCL stavi YAML i pripadajuću sliku u `maps/`, u `.env` postavi `MAP_FILE`, pa:
+For AMCL, put the map YAML and its image in `maps/`, set `MAP_FILE` in `.env`,
+and run:
 
 ```bash
 bash robot.sh localization
 ```
 
-Postavi AMCL početnu pozu prije cilja. Za samostalni Ackermann profil postavi
-`NAV_PROFILE=ackermann`; `robot.sh` automatski uključuje njegove zasebne smoother
-i guard kontejnere. Razvijeni adaptivni profil koristi vlastite MPPI/DWB granice.
+Set the initial AMCL pose before sending a goal. For the standalone Ackermann
+profile, set `NAV_PROFILE=ackermann`; `robot.sh` automatically enables its
+separate smoother and guard containers. The adaptive profile uses its own
+MPPI/DWB limits.
 
-Opcionalni scan adapter nije potreban uz postojeće pretvarače. Uključi ga s
-`ENABLE_SCAN_ADAPTER=1 bash robot.sh mapping` (ili external/localization).
-Izlaz mu je `/autonomy/scan`; u `.env` uskladi `OBSTACLE_SCAN_TOPIC` i/ili
-`LOCALIZATION_SCAN_TOPIC` ako ga želiš koristiti umjesto postojećih skenova.
+The optional scan adapter is unnecessary when using the existing converters.
+Enable it with `ENABLE_SCAN_ADAPTER=1 bash robot.sh mapping` (or
+external/localization). Its output is `/autonomy/scan`; set
+`OBSTACLE_SCAN_TOPIC` and/or `LOCALIZATION_SCAN_TOPIC` in `.env` if you want
+to use it instead of the existing scans.
 
-## Logovi i provjere
+## Logs and checks
 
-### Ograničena prva vožnja
+### Limited initial drive test
 
-`compose.drive.yaml`, `drive.sh` i `drive_guard.py` koriste postojeći Jazzy image.
-Skripta se montira read-only; na robotu nema builda. Zasebni projekt
-`ranger-drive` povezuje `/cmd_vel_nav` s `/cmd_vel`. Pokreće se **disarmed**,
-ne objavljuje brzine dok nije uključen i ne restarta se automatski.
+`compose.drive.yaml`, `drive.sh`, and `drive_guard.py` use the existing Jazzy
+image. The script is mounted read-only; no build is needed on the robot.
+The separate `ranger-drive` project connects `/cmd_vel_nav` to `/cmd_vel`.
+It starts **disarmed**, publishes no velocities until armed, and does not
+restart automatically.
 
-Za prvi test koristi `NAV_PROFILE=holonomic`, pa ponovno `bash robot.sh external`.
-Time se bira postojeći ProgressDWB profil, bez izmjerenih kutova; to nije
-potvrda Ackermann/adaptivnog upravljanja. Glavni profil ostaje dostupan kao
-`NAV_PROFILE=adaptive` nakon integracije provjerenih kutova.
+For the initial test, set `NAV_PROFILE=holonomic` and run
+`bash robot.sh external` again. This selects the existing ProgressDWB profile
+without requiring measured steering angles; it does not validate
+Ackermann/adaptive control. The main profile remains available through
+`NAV_PROFILE=adaptive` after verified angle feedback is integrated.
 
 ```bash
 bash drive.sh up
-# Pričekaj nekoliko sekundi za ROS discovery i aktivaciju kontrolera.
+# Wait a few seconds for ROS discovery and controller activation.
 bash drive.sh arm
 ```
 
-`arm` mora vratiti `success: true`. Nakon toga u RViz-u zadaj **NOVI Nav2 Goal**.
-Ranije prihvaćeni goalovi ne uključuju pogon. **2D Goal Pose** je i dalje samo
-preview. Za prvu probu odaberi slobodan cilj blizu robota, uz spremljenu ruku i
-dostupan fizički E-stop. Brzina je ograničena na 0.05 m/s i 0.10 rad/s; skaliranje
-čuva smjer i zakrivljenost naredbe. Nema automatskog disarma prema trajanju;
-most ostaje uključen do ručnog disarma ili druge provjere za zaustavljanje.
+`arm` must return `success: true`. Then send a **NEW Nav2 Goal** in RViz.
+Previously accepted goals do not enable the drive. **2D Goal Pose** remains
+a planning preview. For the initial trial, select a nearby goal in free space,
+with the arm stowed and the physical E-stop accessible. Speed is limited to
+0.05 m/s and 0.10 rad/s; scaling preserves command direction and curvature.
+There is no elapsed-time disarm: the gateway remains armed until manually
+disarmed or stopped by another check.
 
-Drugi izdavači na `/cmd_vel` se prikazuju u statusu i više ne blokiraju
-uključivanje ili vožnju. Između istodobnih izdavača nije dodan izbor prioriteta;
-njegova integracija ostaje zaseban korak. Provjerava se i
-poznati skup izdavača `/cmd_vel_nav`, aktivni kontroler, realno vrijeme,
-svježa odometrija te `/system_state` bez greške/E-stopa i u CAN načinu.
-Adaptivni/Ackermann kontroleri dodatno zahtijevaju svježe četiri steering
-JointState vrijednosti. Timeout navigacijskih naredbi od 0.30 s zaustavlja i
-isključuje most. Ostali izvori blokade vide se u odgovoru `arm` i logovima.
+Other `/cmd_vel` publishers appear in status reports and no longer block
+arming or driving. There is no priority arbitration between simultaneous
+publishers; that integration remains a separate step. Checks still cover the
+known `/cmd_vel_nav` publishers, an active controller, real time, fresh odometry,
+and `/system_state` with no error/E-stop and CAN control mode enabled.
+Adaptive/Ackermann controllers additionally require four fresh steering
+JointState values. A 0.30-second navigation command timeout stops and disarms
+the gateway. Other blocking conditions appear in the `arm` response and logs.
 
-Zaustavljanje i prekid cilja:
+Stop driving and cancel the goal:
 
 ```bash
 bash drive.sh disarm
@@ -322,27 +352,30 @@ bash robot.sh ros bt-navigator ros2 service call \
 bash drive.sh down
 ```
 
-`/ranger/actuator_state` se u mostu pasivno snima kao `ACTUATOR_SAMPLE` (5 Hz),
-bez resetiranja kutova ili pretvaranja encoder countova u pretpostavljene kutove.
-Uzorci i status mosta idu kroz postojeći logger u `logs/drive-test`.
-ROS discovery provjere nisu DDS autentifikacija. Softverska provjera mosta u
-izoliranoj Docker mreži nije provjera fizičkog E-stopa ni firmware watchdog-a
-u slučaju gubitka napajanja/SIGKILL-a procesa na robotu.
+The gateway passively records `/ranger/actuator_state` as `ACTUATOR_SAMPLE`
+at 5 Hz, without resetting angles or converting encoder counts into assumed
+angles. Samples and gateway status use the existing logger under
+`logs/drive-test`. ROS discovery checks are not DDS authentication. Gateway
+tests on an isolated Docker network do not validate the physical E-stop or
+the firmware watchdog during a power loss or SIGKILL on the robot.
 
-Test: `python3 autonomy_stack/hardware/tests/drive_smoke.py --image IMAGE` iz
-korijena repozitorija. Koristi sintetičke bazu i kontroler u internoj mreži,
-uključujući blokadu starih goalova, dopuštanje drugih izdavača, timeout, E-stop stanje,
-zastarjelu odometriju i nedostatak steeringa u adaptivnom profilu.
+From the repository root, run
+`python3 autonomy_stack/hardware/tests/drive_smoke.py --image IMAGE` to test
+with a synthetic base and controller on an internal network. The test covers
+old-goal rejection, permitted competing publishers, command timeout, E-stop
+state, stale odometry, and missing steering feedback in the adaptive profile.
 
-### Nadogradnja i Ackermann dijagnostika
+<a id="nadogradnja-i-ackermann-dijagnostika"></a>
 
-`jazzy-r4` uključuje trenutačne lokalne promjene planera/kontrolera i njihove
-konfiguracije: najkraću izvedivu rutu, izravne/prečacem skraćene holonomske
-putanje, dijagonalne DWB kandidate te Ackermann referencu i poravnanje pri
-promjeni smjera. RViz image `jazzy-r3-gui` ostaje kompatibilan.
+### Upgrade and Ackermann diagnostics
 
-Za prelazak postojećeg deploymenta na novi image, nakon osvježavanja helpera
-ispod, dok robot miruje:
+`jazzy-r4` includes the current local planner/controller changes and matching
+configurations: shortest feasible routes, direct and shortened holonomic
+paths, diagonal DWB candidates, and Ackermann reference seeding and alignment
+during direction reversals. The `jazzy-r3-gui` RViz image remains compatible.
+
+To upgrade an existing deployment to the new image, first refresh the helpers
+as described below. Then, while the robot is stationary:
 
 ```bash
 bash drive.sh disarm
@@ -352,73 +385,80 @@ bash robot.sh pull
 bash robot.sh external
 bash drive.sh up
 bash robot.sh check
-# Kada su čvorovi spremni, uključi most i pošalji NOVI goal:
+# Once the nodes are ready, arm the gateway and send a NEW goal:
 bash drive.sh arm
 ```
 
-`external` je način korišten na ovom robotu s postojećim SLAM-om; ako koristiš
-vlastito mapiranje ili AMCL, zadrži pripadajući `mapping`/`localization` način.
-Novi image zahtijeva ponovno stvaranje aplikacijskih kontejnera: izmjene iz
-njihova writable layera prvo spremi u izvor/image. Postojeći `NAV_PROFILE`,
-karte, logovi i vendor kontejner `ranger_hero_jazzy` ostaju sačuvani.
+`external` is the mode used on this robot with its existing SLAM. If you use
+this stack's mapping or AMCL, retain the corresponding `mapping` or
+`localization` mode. A new image requires recreating application containers:
+save any edits in their writable layers to source code or an image first.
+The existing `NAV_PROFILE`, maps, logs, and vendor container
+`ranger_hero_jazzy` are preserved.
 
+`apply_update.sh FULL_COMMIT_SHA` downloads deployment files only, validates
+them before making changes, and backs up the previous versions under
+`update_backups`. Run it while the robot is stationary. It uses
+`docker rename` to rename existing containers in place, including stopped
+containers, without recreating application containers. Only the drive gateway
+is disarmed, stopped, and restarted to load the updated Python script.
+It does not overwrite `.env`, maps, logs, or planner/controller C++ sources.
+An unknown additional Compose service requires a manual configuration merge.
+A later `compose up` may recreate containers if their configuration changes;
+save edits from their writable layers to source code or an image first.
 
-`apply_update.sh FULL_COMMIT_SHA` preuzima samo deployment datoteke, provjerava
-ih prije promjene i sprema prethodne verzije u `update_backups`. Pokreni ga dok
-robot miruje. Korištenjem `docker rename` preimenuje postojeće kontejnere na
-mjestu, uključujući zaustavljene, bez ponovnog stvaranja aplikacijskih kontejnera.
-Samo pogonski most se isključi, zaustavi i ponovo pokrene radi učitavanja nove
-Python skripte. `.env`, karte, logovi i C++ izvori planera/kontrolera se ne
-prepisuju. Nepoznati dodatni Compose servis zahtijeva ručno spajanje promjena.
-Kod budućeg `compose up` Compose može ponovno stvoriti kontejnere kad promijeni
-konfiguraciju; izmjene u njihovu writable layeru prvo treba spremiti u izvor/image.
+On the configured Mini V3, the driver selects the base mode from `Twist`:
 
-Na konfiguriranom Mini V3 driver iz `Twist` bira način baze:
-
-| Ulaz | Način baze |
+| Input | Base mode |
 |---|---|
-| `linear.y != 0` | paralelni, mode 1 |
-| `linear.y = 0`, `linear.x != 0`, `angular.z = 0` | dual Ackermann, ravno |
+| `linear.y != 0` | parallel, mode 1 |
+| `linear.y = 0`, `linear.x != 0`, `angular.z = 0` | dual Ackermann, straight |
 | `linear.y = 0`, `abs(linear.x/angular.z) >= 0.47644 m` | dual Ackermann, mode 0 |
-| `linear.y = 0`, manji polumjer, uključujući rotaciju na mjestu | spinning, mode 2 |
+| `linear.y = 0`, smaller radius, including rotation in place | spinning, mode 2 |
 
-Driver uspoređuje `linear.y` s nulom bez tolerancije: i vrlo mala nenulta
-vrijednost bira paralelni način. Npr. `vx=0.05 m/s, vy=0, wz=0.025 rad/s`
-predstavlja Ackermann luk polumjera 2 m, ujedno unutar granica mosta. Ovo opisuje
-izbor režima u driveru, odvojeno od MPPI/Ackermann Nav2 profila koji dodatno
-zahtijeva provjerenu povratnu informaciju četiri kotača.
+The driver compares `linear.y` to zero without a tolerance: even a tiny
+nonzero value selects parallel mode. For example,
+`vx=0.05 m/s, vy=0, wz=0.025 rad/s` describes an Ackermann arc with a 2 m
+radius, within the gateway limits. This describes the driver's mode selection.
+The MPPI/Ackermann Nav2 profile additionally requires verified feedback from
+all four steering wheels.
 
-Izvori: [Ranger ROS2 driver](https://github.com/agilexrobotics/ranger_ros2/blob/humble/ranger_base/src/ranger_messenger.cpp),
+Sources: [Ranger ROS2 driver](https://github.com/agilexrobotics/ranger_ros2/blob/humble/ranger_base/src/ranger_messenger.cpp),
 [SDK CAN parser](https://github.com/agilexrobotics/ugv_sdk/blob/main/src/protocol_v2/agilex_msg_parser_v2.c).
 
-Za usporedbu ROS mjerenja i sirovog CAN-a:
+To compare ROS measurements with raw CAN feedback:
 
 ```bash
 bash ackermann_check.sh 20
 ```
 
-Snimanje ne šalje ROS ni CAN naredbe. Tijekom tih 20 sekundi možeš u zasebnom
-prozoru izvesti već pripremljenu kratku probu u kojoj kotači mijenjaju kut.
-Arhiva sadrži `feedback.json`, pregled izvora postojećeg drivera, trenutačne
-parametre i nedavne logove planiranja/kontrolera. CAN `0x271` sadrži četiri signed big-endian kuta
-kanala 5–8 u 0.001 rad, `0x291` način i `mode_changing`, a `0x251..0x258` podatke
-aktuatora s RPM/current/pulse_count. Encoder countovi se ne pretvaraju u kutove.
-Report pokazuje minimalne/maksimalne i zadnje kutove po ID-u te stvarne svježine
-primanja. Stalni kut tijekom mirovanja sam po sebi nije greška. Fizički redoslijed,
-znakovi i nule kotača još trebaju potvrdu prije JointState adaptera za MPPI.
+The capture sends no ROS or CAN commands. During those 20 seconds, you can
+repeat the previously prepared short trial in a separate window while the
+wheels change steering angle. The archive includes `feedback.json`, an
+inspection of the existing driver source, current parameters, and recent
+planner/controller logs. CAN `0x271` contains four signed big-endian angles
+for channels 5–8 in units of 0.001 rad; `0x291` contains mode and
+`mode_changing`; `0x251..0x258` contain actuator RPM, current, and pulse
+counts. Encoder counts are not converted into angles. The report shows
+minimum, maximum, and last angles by ID, along with receive freshness.
+A constant angle while stationary is not itself a fault. Physical wheel
+order, signs, and zero offsets still need confirmation before implementing
+a JointState adapter for MPPI.
 
-### Windows CMD: karta i cilj u pregledniku
+### Windows CMD: map viewing and goals in the browser
 
-RViz/noVNC radi u zasebnom amd64 imageu
-`ghcr.io/bedathenic/ranger-autonomy:jazzy-r3-gui`, izgrađenom povrh provjerenog
-navigation imagea `jazzy-r3`. `rviz-web` je jedini RViz ROS proces, a zasebni
-`goal-preview` prima klik i zove isključivo `/compute_path_to_pose`.
-Postojeći navigacijski servisi i robotov `ranger_hero_jazzy` ostaju u svojim
-Compose projektima. Viewer koristi projekt `ranger-viewer`, pa ga ponovno
-pokretanje `robot.sh external` neće ukloniti kao orphan.
+RViz/noVNC runs in the separate amd64 image
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r3-gui`, built on the verified
+`jazzy-r3` navigation image. `rviz-web` is the only RViz ROS process.
+The separate `goal-preview` service receives preview clicks and calls only
+`/compute_path_to_pose`. Existing navigation services and the robot's
+`ranger_hero_jazzy` remain in their own Compose projects. The viewer uses
+`ranger-viewer`, so restarting `robot.sh external` does not remove it as an
+orphan.
 
-U deployment direktoriju moraju biti `compose.gui.yaml` i `viewer.sh` iz ovog
-repozitorija (stara `jazzy-r3` arhiva još ih ne sadrži). Na hostu robota:
+The deployment directory must contain `compose.gui.yaml` and `viewer.sh`
+from this repository; the original `jazzy-r3` archive does not include them.
+On the robot host:
 
 ```bash
 cd ~/ranger_autonomy/ranger-hardware
@@ -427,83 +467,91 @@ bash viewer.sh up
 bash viewer.sh status
 ```
 
-Na Windows računalu otvori CMD i SSH tunel; zamijeni `ROBOT_IP` svojom adresom:
+On the Windows computer, open CMD and start an SSH tunnel, replacing
+`ROBOT_IP` with the robot's address:
 
 ```cmd
 ssh -N -L 6080:127.0.0.1:6080 ranger@ROBOT_IP
 ```
 
-Ostavi taj prozor otvoren. U pregledniku na Windows računalu otvori
+Keep that window open. In a browser on the Windows computer, open
 `http://localhost:6080/vnc.html?autoconnect=true&resize=scale`.
-noVNC sluša samo na loopbacku robota, a pristup ide kroz autentificirani SSH
-tunel. Nije potrebno instalirati ROS ili X server na Windows. Ako je lokalni
-port 6080 zauzet, koristi `-L 6081:127.0.0.1:6080` i otvori localhost:6081.
+noVNC listens only on the robot's loopback interface; access goes through the
+authenticated SSH tunnel. Windows needs neither ROS nor an X server. If local
+port 6080 is occupied, use `-L 6081:127.0.0.1:6080` and open localhost:6081.
 
-Prikaz je postavljen na okvir `map`; vidi se `/map`, TF položaj
-`ranger_base_link`, `/odom`, `/scan_obstacles`, footprint i plava preview putanja.
-Položaj robota prikazan je crvenom strelicom odometrije i TF oznakom baze. Footprint je konfiguracija
-costmape i nije potvrda izmjerenog obrisa s opremom. 3D model i gusti cloud
-nisu potrebni za ovaj pregled karte. Kotačić miša mijenja povećanje; srednja
-tipka omogućuje pomicanje pogleda.
+The RViz fixed frame is `map`. The view displays `/map`, the TF pose of
+`ranger_base_link`, `/odom`, `/scan_obstacles`, the footprint, and a blue
+preview path. Robot position is shown by the red odometry arrow and base TF
+marker. The footprint comes from the costmap configuration and does not
+confirm the measured outline with mounted equipment. A 3D model and dense
+point cloud are unnecessary for this map view. Use the mouse wheel to zoom
+and the middle mouse button to pan.
 
-Za zadavanje cilja odaberi **2D Goal Pose**, zatim pritisni lijevu tipku na
-slobodnoj točki i povuci u željenom smjeru završne orijentacije. Klik objavljuje
-`/autonomy/preview_goal`, `goal-preview` zove razvijeni adaptivni planer s
-`use_start=false` i rezultat prikazuje na `/autonomy/preview_path`. Ovdje se
-izračunava putanja, bez slanja `/navigate_to_pose` ili brzinskih naredbi.
-Neuspjeli cilj briše staru preview putanju. Status je u `bash viewer.sh logs`
-i topicu `/autonomy/preview_status`. `goal-preview` snima konzolu kroz postojeći
-logger, a `telemetry` i dalje bilježi izvorni globalni plan i odluke planera.
+To preview a goal, select **2D Goal Pose**, left-click a free location, and
+drag toward the desired final orientation. The click publishes
+`/autonomy/preview_goal`; `goal-preview` calls the developed adaptive planner
+with `use_start=false` and publishes the result on `/autonomy/preview_path`.
+This computes a path without sending `/navigate_to_pose` or velocity commands.
+A failed goal clears the previous preview path. Status is available through
+`bash viewer.sh logs` and `/autonomy/preview_status`. `goal-preview` records
+its console through the existing logger; `telemetry` continues to record
+the original global plan and planner decisions.
 
-Nakon dovršetka fizičke integracije može se u `.env` postaviti
-`RANGER_GUI_NAVIGATION_TOOLS=true` i ponovno pokrenuti `bash viewer.sh up`.
-To dodaje standardni **Nav2 Goal** alat i Navigation 2 panel, koji koriste
-`NavigateToPose` i postojeći razvijeni BT/kontroler. Ova postavka sama ne
-povezuje `/cmd_vel_nav` s pogonom niti dodaje kutove kotača.
+Once physical drive integration is ready, set
+`RANGER_GUI_NAVIGATION_TOOLS=true` in `.env` and run `bash viewer.sh up`
+again. This adds the standard **Nav2 Goal** tool and Navigation 2 panel, which
+use `NavigateToPose` and the existing custom behavior tree/controller.
+This setting alone neither connects `/cmd_vel_nav` to the drive nor supplies
+measured wheel angles.
 
-Zaustavljanje samo viewera:
+Stop only the viewer:
 
 ```bash
 bash viewer.sh down
 ```
 
-Workflow `publish-gui.yaml` gradi samo amd64 GUI image i prije objave provjerava
-RViz/noVNC te relay ciljeva preko stvarnog ROS action API-ja u odvojenoj Docker
-mreži. Test ima sintetički action server: ne predstavlja novo testiranje
-algoritma planera niti potvrdu fizičke vožnje.
+The `publish-gui.yaml` workflow builds only the amd64 GUI image. Before
+publication, it verifies RViz/noVNC and goal forwarding through the real ROS
+action API on an isolated Docker network. Its synthetic action server does
+not provide new validation of the planning algorithm or physical driving.
 
-Svaki poziv mapping/localization/external dobiva ID pokretanja. Logovi su na
-hostu u `logs/<ID>/GGGG-MM-DD/<sesija-servisa>/`:
+Each mapping/localization/external invocation receives a deployment ID.
+Logs are stored on the host under
+`logs/<ID>/YYYY-MM-DD/<service-session>/`:
 
-- manifest naredbe, vremena i izlaznog statusa;
-- odvojeni segmenti senzora, odometrije, TF-a, planiranja, kontrole i lifecyclea;
-- učitani parametri i njihove hash vrijednosti, planovi, ETA i promjene načina;
-- snimke karte/costmapa pri planu, grešci ili otkazu;
-- rotacija po 20 MiB, bez prepisivanja prethodnih dijelova;
-- sažeci gubitaka zapisa i grešaka pisanja.
+- A command manifest, timestamps, and exit status.
+- Separate sensor, odometry, TF, planning, control, and lifecycle segments.
+- Loaded parameters and hashes, plans, ETA, and mode changes.
+- Map/costmap snapshots on planning, failure, or cancellation.
+- Rotation at 20 MiB without overwriting earlier parts.
+- Summaries of dropped records and write errors.
 
-Telemetrija je uzorkovana dijagnostika, ne puni rosbag. Livox oblak bilježi se
-kao metapodaci oblaka; skenovi, IMU i odometrija uzorkuju se kao poruke. Logger
-ne pretvara neprovjerene IMU jedinice i ne objavljuje upravljačke naredbe.
+Telemetry is sampled diagnostics rather than a full rosbag. Livox clouds are
+recorded as cloud metadata; scans, IMU, and odometry are sampled as messages.
+The logger does not convert unverified IMU units or publish control commands.
 
 ```bash
 bash robot.sh status
 bash robot.sh logs telemetry
 bash robot.sh ros controller ros2 lifecycle get /controller_server
 bash robot.sh ros telemetry ros2 run ranger_logging read_logs.py \
-  /logs/ID/GGGG-MM-DD/SESIJA --segment diagnostics --event health
+  /logs/ID/YYYY-MM-DD/SESSION --segment diagnostics --event health
 bash robot.sh down
 ```
 
-`check` samo čita ROS podatke. Provjerava senzore, odometrijske frameove, TF i
-potrebne upravljačke zglobove. Ne potvrđuje fizikalne granice ni sigurnost vožnje.
-Karte i logovi ostaju nakon gašenja. Za novi release promijeni tag u `.env`, pa
-ponovi `pull` i odabrani način pokretanja.
+`check` only reads ROS data. It checks sensors, odometry frames, TF, and the
+required steering joints; it does not validate physical limits or driving
+safety. Maps and logs remain after shutdown. For a new release, change the
+image tag in `.env`, then repeat `pull` and the selected startup mode.
 
-Lokalno je provjeren amd64 build/start/planiranje i strukturirano logiranje.
-Fizička navigacija, mapiranje povratne informacije kotača, izlaz prema pogonu,
-Registry pull i stvarni robot zahtijevaju zasebnu provjeru.
+The amd64 build, startup, planning, and structured logging have been validated
+locally. The `jazzy-r4` image is published in GHCR, with anonymous access and
+the release archive verified. The initial physical holonomic motion test was
+reported successful. Full physical adaptive/Ackermann navigation, wheel
+feedback mapping, and physical limits still require validation on the robot.
 
-Izvori:
-- https://docs.docker.com/build/ci/github-actions/multi-platform/
-- https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images
+Sources:
+
+- [Docker: multi-platform images with GitHub Actions](https://docs.docker.com/build/ci/github-actions/multi-platform/)
+- [GitHub: publishing Docker images](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)
