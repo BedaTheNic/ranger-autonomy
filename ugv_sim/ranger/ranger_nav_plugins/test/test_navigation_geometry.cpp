@@ -25,6 +25,15 @@ TEST(Geometry, LateralCandidateDoesNotRotate)
   EXPECT_NEAR(v.linear.x,0,1e-9);EXPECT_LT(v.linear.y,0);
   EXPECT_DOUBLE_EQ(v.angular.z,0);
 }
+TEST(Geometry, AckermannProgressAssistCannotDriveAwayFromAMissedCusp)
+{
+  for (const int direction : {-1, 1}) {
+    const auto command = pursuit({0, 0, 0}, {-direction * .06, .02, 0},
+      true, direction, .8, .08);
+    EXPECT_DOUBLE_EQ(command.linear.x, 0.0);
+    EXPECT_DOUBLE_EQ(command.angular.z, 0.0);
+  }
+}
 TEST(Geometry, CornerProjectionCannotSkipTheVertexToAnAckermannExit)
 {
   std::vector<Pose2> p{{0,0,0},{0,1,0},{1,1,0}};

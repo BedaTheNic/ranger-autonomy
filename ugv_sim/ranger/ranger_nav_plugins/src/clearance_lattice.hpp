@@ -3,6 +3,7 @@
 #include "nav2_smac_planner/smac_planner_lattice.hpp"
 #include "navigation_geometry.hpp"
 #include "goal_connection.hpp"
+#include "holonomic_path.hpp"
 
 namespace ranger_nav_plugins
 {
@@ -34,6 +35,10 @@ public:
     const auto sb=NodeLattice::motion_table.getClosestAngularBin(yaw(start.pose));
     auto footprint=_costmap_ros->getRobotFootprint();
     nav2_costmap_2d::padFootprint(footprint,planning_padding);
+    std_msgs::msg::Header header;header.frame_id=_global_frame;header.stamp=_clock->now();
+    auto direct=directHolonomic(planar(start.pose),planar(goal.pose),*_costmap,footprint);
+    if(!direct.empty()) {return densePath(direct,header);}
+    const auto executing_footprint=footprint;
     auto expanded=footprint;nav2_costmap_2d::padFootprint(expanded,search_padding);
     auto cell_pose=[&](unsigned int x,unsigned int y,unsigned int bin) {
       auto p=getWorldCoords(x,y,_costmap);p.orientation=getWorldOrientation(NodeLattice::motion_table.getAngleFromBin(bin));
@@ -106,7 +111,24 @@ public:
       pose.pose.orientation=getWorldOrientation(p.a);result.poses.push_back(pose);
     }
     result.poses.back().pose=goal.pose;
-    return result;
+    auto route=points(result);
+    auto beginning=directHolonomic(planar(start.pose),route.front(),*_costmap,executing_footprint);
+    if(beginning.empty()) {throw std::runtime_error("No safe connection from exact start to lattice");}
+    beginning.insert(beginning.end(),route.begin()+1,route.end());
+    // Keep the search clearance when cutting across an obstacle corner. A
+    // shortcut that spends this reserve can become invalid on the next scan.
+    // Original start/goal connectors still get the final execution check.
+    route=shortcutHolonomic(beginning,*_costmap,footprint,[&]() {
+#ifdef RANGER_NAV2_JAZZY
+      if(cancel_checker()) {throw nav2_core::PlannerCancelled("Planning canceled");}
+#endif
+      return std::chrono::duration<double>(std::chrono::steady_clock::now()-started).count()>
+        _max_planning_time;
+    });
+    if(!pathFree(route,*_costmap,executing_footprint)) {
+      throw std::runtime_error("Holonomic route failed swept footprint validation");
+    }
+    return densePath(route,result.header);
   }
 };
 }

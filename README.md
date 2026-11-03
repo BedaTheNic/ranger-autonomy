@@ -17,10 +17,10 @@ instructions for the current update and diagnostic procedures.
 
 ## Deploy on the robot
 
-After the `jazzy-r3` workflow has completed, download the release deployment bundle:
+After the `jazzy-r4` workflow has completed, download the release deployment bundle:
 
 ```bash
-curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r3/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
+curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r4/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
 tar -xzf ranger-hardware-deploy.tar.gz
 cd ranger-hardware
 bash robot.sh pull
@@ -29,7 +29,7 @@ bash robot.sh check
 ```
 
 The bundle includes a non-secret `.env` preset. The image is
-`ghcr.io/bedathenic/ranger-autonomy:jazzy-r3`, for the robot’s amd64 architecture.
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r4`, for the robot’s amd64 architecture.
 For a private GHCR package, first run `docker login ghcr.io -u BedaTheNic` on the robot.
 No source checkout or build is needed on the robot.
 
@@ -43,11 +43,21 @@ The confirmed driver container `ranger_hero_jazzy` uses host networking and priv
 The current Compose config defaults our Fast DDS processes to UDPv4 for compatibility.
 The original jazzy-r3 deployment bundle needs this Compose-only update; no image rebuild is needed.
 
-**Physical driving is not yet integrated:** `/cmd_vel_nav` is separate from the
-robot's `/cmd_vel`, which already has other command publishers. Measured Ranger
-steering joint feedback, command arbitration/watchdog, footprint and limits must
-be validated before connecting the drive. A successful image build does not
-validate physical navigation.
+The optional drive gateway (`bash drive.sh up`) starts disarmed. The first
+holonomic motion test passed on the robot; full adaptive/Ackermann navigation
+still requires verified measured steering feedback and physical calibration.
+The gateway permits other `/cmd_vel` publishers; arbitration is not implemented.
+
+`jazzy-r4` rebuilds the current local planner/controller sources and matching
+configs: shortest feasible route selection, direct/shortcut holonomic paths,
+diagonal velocity candidates, and Ackermann reference seeding and reversal
+alignment. Container names remain `ranger_hero_<service>`, with no 60-second
+arm expiry. The existing `jazzy-r3-gui` viewer remains compatible.
+
+For an existing installation, preserve `.env` (including `NAV_PROFILE`), maps
+and logs, stop/disarm driving, change `AUTONOMY_IMAGE` to the new tag, then pull
+and recreate the navigation and gateway containers. See the detailed upgrade
+commands in the [hardware instructions](autonomy_stack/hardware/README.md).
 
 ## Build and publish
 

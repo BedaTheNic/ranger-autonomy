@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-03",
+  "architecture": "linux/amd64",
+  "image": "ranger-autonomy:jazzy-r4",
+  "local_image_id": "sha256:4f4e7fc8e01f962de408df9e05cca5b35dfddef124a5c2834407020f9a775293",
+  "native_humble": {
+    "build": "passed",
+    "reported_tests": 71,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0
+  },
+  "jazzy": {
+    "build": "passed",
+    "reported_navigation_tests": 71,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 1,
+    "logging_tests": 11,
+    "skipped_case": "PruningPassedWaypointsDoesNotReplanButNewWaypointsDo: single-goal tree has no waypoint pruning"
+  },
+  "compose_planning_and_logging": "passed",
+  "drive_gateway": "passed",
+  "passive_ackermann_ros_vcan": "passed",
+  "verified_source_config_hashes": 42,
+  "physical_robot": false
+}

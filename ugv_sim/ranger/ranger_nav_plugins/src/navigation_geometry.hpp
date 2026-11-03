@@ -132,6 +132,9 @@ inline geometry_msgs::msg::Twist pursuit(const Pose2 & robot,const Pose2 & targe
   if(d<.008) {return v;}
   const double magnitude=std::min(speed,.7*d);
   if(ackermann) {
+    // The target must be ahead in the active gear. A missed cusp behind
+    // the axle cannot be recovered by driving farther in the same gear.
+    if(direction*bx<=0.0) {return v;}
     v.linear.x=direction*magnitude;
     v.angular.z=v.linear.x*std::clamp(2*by/(d*d),-1/radius,1/radius);
   } else {

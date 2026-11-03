@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <exception>
 #include "dwb_core/dwb_local_planner.hpp"
+#include "dwb_core/exceptions.hpp"
+#include "dwb_core/illegal_trajectory_tracker.hpp"
 #ifdef RANGER_NAV2_JAZZY
 #include "nav2_core/controller_exceptions.hpp"
 #else
 #include "nav2_core/exceptions.hpp"
 #endif
 #include "heading_maneuver.hpp"
+#include "holonomic_velocity.hpp"
 #include "pluginlib/class_list_macros.hpp"
 
 namespace ranger_nav_plugins
@@ -86,6 +89,9 @@ public:
     furthest_=std::max(furthest_,progress);
     const double corner=cornerDistance(path,projection);
     auto target=lookahead(path,projection,std::min(.35,corner));
+    const double tx=target.x-robot.x,ty=target.y-robot.y;
+    target_x_=std::cos(robot.a)*tx+std::sin(robot.a)*ty;
+    target_y_=-std::sin(robot.a)*tx+std::cos(robot.a)*ty;
     auto * map=costmap_ros_->getCostmap();
     const double now=clock_->now().seconds();
     {
@@ -132,6 +138,43 @@ public:
     if(nominal_error) {std::rethrow_exception(nominal_error);}
     return command;
   }
+protected:
+  dwb_msgs::msg::TrajectoryScore coreScoringAlgorithm(
+    const geometry_msgs::msg::Pose2D & pose,const nav_2d_msgs::msg::Twist2D velocity,
+    std::shared_ptr<dwb_msgs::msg::LocalPlanEvaluation> & results) override
+  {
+    dwb_msgs::msg::TrajectoryScore best;best.total=-1;
+    std::exception_ptr failure;
+    try {best=dwb_core::DWBLocalPlanner::coreScoringAlgorithm(pose,velocity,results);}
+    catch(const dwb_core::NoLegalTrajectoriesException &) {failure=std::current_exception();}
+    auto node=node_.lock();
+    auto value=[&](const std::string & key) {return node->get_parameter(dwb_plugin_name_+"."+key).as_double();};
+    const double dt=value("sim_period");
+    TranslationWindow window{
+      std::max(value("min_vel_x")*speed_scale_,velocity.x+value("decel_lim_x")*dt),
+      std::min(value("max_vel_x")*speed_scale_,velocity.x+value("acc_lim_x")*dt),
+      std::max(value("min_vel_y")*speed_scale_,velocity.y+value("decel_lim_y")*dt),
+      std::min(value("max_vel_y")*speed_scale_,velocity.y+value("acc_lim_y")*dt),
+      velocity.theta+value("decel_lim_theta")*dt,velocity.theta+value("acc_lim_theta")*dt,
+      value("max_speed_xy")*speed_scale_};
+    auto aligned=alignedTranslation(target_x_,target_y_,.7*std::hypot(target_x_,target_y_),window);
+    if(aligned) {
+      nav_2d_msgs::msg::Twist2D v;v.x=aligned->linear.x;v.y=aligned->linear.y;
+      auto trajectory=traj_generator_->generateTrajectory(pose,velocity,v);
+      try {
+        // This is an extra DWB candidate, checked by ALL ordinary critics,
+        // including footprint collision and mode constraints before selection.
+        auto score=scoreTrajectory(trajectory,best.total);
+        if(results) {results->twists.push_back(score);}
+        if(best.total<0 || score.total<best.total) {
+          best=score;
+          if(results) {results->best_index=results->twists.size()-1;}
+        }
+      } catch(const dwb_core::IllegalTrajectoryException &) {}
+    }
+    if(best.total<0 && failure) {std::rethrow_exception(failure);}
+    return best;
+  }
 private:
   void loadSegment()
   {
@@ -154,6 +197,7 @@ private:
   std::vector<double> cumulative_;
   ProgressAssist assist_;
   double speed_scale_{1.0};
+  double target_x_{0},target_y_{0};
   bool terminal_pivot_{false};
 };
 }

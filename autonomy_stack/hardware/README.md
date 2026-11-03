@@ -175,7 +175,7 @@ Host treba Docker Engine i Buildx; ROS instalacija na hostu nije potrebna.
 Za native amd64 lokalni build:
 
 ```bash
-bash release.sh build ranger-autonomy:jazzy-r3
+bash release.sh build ranger-autonomy:jazzy-r4
 ```
 
 Gradi se samo `linux/amd64`, prema dijagnostici robota. Na ovom amd64
@@ -185,17 +185,17 @@ Prijavi se u registry (pri upitu za lozinku koristi svoj GHCR token):
 
 ```bash
 docker login ghcr.io -u BedaTheNic
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r3
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r4
 ```
 
 Zadano se gradi i objavljuje samo `linux/amd64`, arhitektura stvarnog robota.
-Za drugi registry promijeni referencu, npr. `docker.io/USER/ranger-autonomy:jazzy-r3`
-ili `registry.example.com/TEAM/ranger-autonomy:jazzy-r3`, i prijavi se u njega.
+Za drugi registry promijeni referencu, npr. `docker.io/USER/ranger-autonomy:jazzy-r4`
+ili `registry.example.com/TEAM/ranger-autonomy:jazzy-r4`, i prijavi se u njega.
 Više tagova/registryja može se zadati nakon platformi:
 
 ```bash
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r3 \
-  linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r3
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r4 \
+  linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r4
 ```
 
 Build kontekst je nadređeni direktorij s `autonomy_stack`, `ugv_sim` i
@@ -204,8 +204,8 @@ Build kontekst je nadređeni direktorij s `autonomy_stack`, `ugv_sim` i
 ### Opcija B: GitHub Actions gradi i objavljuje
 
 Izvezeni repo već sadrži `.github/workflows/publish.yaml`. Na GitHubu otvori
-Actions → Verify and publish Ranger autonomy → Run workflow, tag `jazzy-r3`.
-Alternativno objavi Git tag `jazzy-r3`.
+Actions → Verify and publish Ranger autonomy → Run workflow, tag `jazzy-r4`.
+Alternativno objavi Git tag `jazzy-r4`.
 
 Workflow prvo gradi amd64 image, pokreće izvorne C++/logger regresije i izolirani
 adaptivni test planiranja/logiranja. Nakon prolaza objavljuje isti provjereni amd64 image u GHCR, bez ponovnog builda. Koristi repo `GITHUB_TOKEN` s `packages: write`; token se ne
@@ -335,6 +335,33 @@ uključujući blokadu starih goalova, dopuštanje drugih izdavača, timeout, E-s
 zastarjelu odometriju i nedostatak steeringa u adaptivnom profilu.
 
 ### Nadogradnja i Ackermann dijagnostika
+
+`jazzy-r4` uključuje trenutačne lokalne promjene planera/kontrolera i njihove
+konfiguracije: najkraću izvedivu rutu, izravne/prečacem skraćene holonomske
+putanje, dijagonalne DWB kandidate te Ackermann referencu i poravnanje pri
+promjeni smjera. RViz image `jazzy-r3-gui` ostaje kompatibilan.
+
+Za prelazak postojećeg deploymenta na novi image, nakon osvježavanja helpera
+ispod, dok robot miruje:
+
+```bash
+bash drive.sh disarm
+cp -p .env ".env.before-r4.$(date +%Y%m%d_%H%M%S)"
+sed -i 's|^AUTONOMY_IMAGE=.*|AUTONOMY_IMAGE=ghcr.io/bedathenic/ranger-autonomy:jazzy-r4|' .env
+bash robot.sh pull
+bash robot.sh external
+bash drive.sh up
+bash robot.sh check
+# Kada su čvorovi spremni, uključi most i pošalji NOVI goal:
+bash drive.sh arm
+```
+
+`external` je način korišten na ovom robotu s postojećim SLAM-om; ako koristiš
+vlastito mapiranje ili AMCL, zadrži pripadajući `mapping`/`localization` način.
+Novi image zahtijeva ponovno stvaranje aplikacijskih kontejnera: izmjene iz
+njihova writable layera prvo spremi u izvor/image. Postojeći `NAV_PROFILE`,
+karte, logovi i vendor kontejner `ranger_hero_jazzy` ostaju sačuvani.
+
 
 `apply_update.sh FULL_COMMIT_SHA` preuzima samo deployment datoteke, provjerava
 ih prije promjene i sprema prethodne verzije u `update_backups`. Pokreni ga dok

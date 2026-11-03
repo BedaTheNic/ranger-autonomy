@@ -2,6 +2,34 @@
 #include <gtest/gtest.h>
 #include "../src/ackermann_controller.cpp"
 
+TEST(ReversalHandoff, OnlyRequestsAlignmentAtAnUnreleasedCusp)
+{
+  struct Handler : ranger_nav_plugins::ReversalPathHandler
+  {
+    void prepare(const nav_msgs::msg::Path & leg, unsigned int inversion) {
+      enforce_path_inversion_ = true;
+      inversion_locale_ = inversion;
+      inversion_xy_tolerance_ = .04;
+      inversion_yaw_tolerance = .08;
+      global_plan_up_to_inversion_ = leg;
+    }
+  } handler;
+  nav_msgs::msg::Path leg;
+  geometry_msgs::msg::PoseStamped cusp;
+  cusp.pose.orientation.w = 1.0;
+  leg.poses.push_back(cusp);
+  handler.prepare(leg, 9);
+  EXPECT_TRUE(handler.needsCuspApproach({.01,0,.19}, leg, 1, .8));
+  EXPECT_FALSE(handler.needsCuspApproach({.01,0,.04}, leg, 1, .8));
+  EXPECT_FALSE(handler.needsCuspApproach({-.12,0,.19}, leg, 1, .8));
+  EXPECT_TRUE(handler.needsCuspApproach({.06,0,.19}, leg, 1, .8));
+  handler.prepare(leg, 0);
+  EXPECT_FALSE(handler.needsCuspApproach({.01,0,.19}, leg, 1, .8));
+  leg.poses.push_back(cusp);
+  handler.prepare(leg, 9);
+  EXPECT_FALSE(handler.needsCuspApproach({.01,0,.19}, leg, 1, .8));
+}
+
 TEST(SteeringFeedback, PivotAndLateralSteeringRemainFresh)
 {
   sensor_msgs::msg::JointState m;

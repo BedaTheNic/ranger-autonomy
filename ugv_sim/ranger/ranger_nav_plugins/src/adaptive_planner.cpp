@@ -94,14 +94,20 @@ public:
     if(a.poses.size()==1) {ta=std::abs(wrap(yaw(goal.pose)-yaw(start.pose)))/limits_.angular;}
     if(h.poses.size()==1) {th=std::abs(wrap(yaw(goal.pose)-yaw(start.pose)))/limits_.angular;}
     if(!std::isfinite(ta)&&!std::isfinite(th)) {throw std::runtime_error("No feasible candidate route: "+failure);}
-    bool ack=ta<=th;
+    const double la=std::isfinite(ta)?routeLength(points(a),planar(start.pose),planar(goal.pose)):INFINITY;
+    const double lh=std::isfinite(th)?routeLength(points(h),planar(start.pose),planar(goal.pose)):INFINITY;
+    bool ack=preferShorterRoute(la,ta,lh,th);
     std::ostringstream json;
     json<<"{\"selected\":\""<<(ack?"ackermann_route":"mixed_route")<<"\",\"ackermann_eta\":";
     if(std::isfinite(ta)) {json<<ta;} else {json<<"null";}
     json<<",\"mixed_eta\":";if(std::isfinite(th)) {json<<th;} else {json<<"null";}
+    json<<",\"objective\":\"shortest_feasible\",\"ackermann_length\":";
+    if(std::isfinite(la)) {json<<la;} else {json<<"null";}
+    json<<",\"holonomic_length\":";
+    if(std::isfinite(lh)) {json<<lh;} else {json<<"null";}
     json<<"}";
     std_msgs::msg::String message;message.data=json.str();publisher_->publish(message);
-    RCLCPP_INFO(node_.lock()->get_logger(),"Route ETA decision: %s",message.data.c_str());
+    RCLCPP_INFO(node_.lock()->get_logger(),"Route length decision: %s",message.data.c_str());
     return ack?a:h;
   }
 private:
@@ -116,3 +122,4 @@ private:
 };
 }
 PLUGINLIB_EXPORT_CLASS(ranger_nav_plugins::AdaptivePlanner,nav2_core::GlobalPlanner)
+PLUGINLIB_EXPORT_CLASS(ranger_nav_plugins::ClearanceLattice,nav2_core::GlobalPlanner)

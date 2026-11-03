@@ -5,6 +5,10 @@ putanje. MPPI upravlja Ackermann dionicama, a DWB holonomskim dionicama.
 Postojeći profili `ackermann` i `holonomic` ostaju dostupni za usporedbu.
 Parametri vrijede za Mini V2 u ovoj simulaciji; nisu kalibracija većeg Rangera.
 
+Od 2026-11-02 holonomski planer i kontroler podržavaju izravne dijagonale,
+a odabir globalne rute daje prednost duljini. Detalji promjene i testiranje:
+[DIAGONAL_NAVIGATION.md](DIAGONAL_NAVIGATION.md).
+
 ## Pokretanje novog svijeta
 
 Zaustavi prethodnu simulaciju prije pokretanja druge na istoj domeni.
@@ -50,15 +54,19 @@ ciljeva. Za test SLAM-a može se pokrenuti isti `world` uz `simulation.sh slam`.
 1. Globalni planer generira dva kandidata kada je stvarno potreban novi plan.
    Oba koriste costmap i footprint robota. Ackermann kandidat procjenjuje se uz svoju
    orijentaciju i redoslijed promjena smjera, a Lattice kandidat uz dopuštenu
-   mješovitu/holonomsku izvedbu. Uspoređuje se trajanje i šalje odabrana putanja.
+   mješovitu/holonomsku izvedbu. Bira se kraći izvedivi kandidat; procjena
+   trajanja razrješava samo jednake duljine. U slobodnom prostoru holonomski
+   kandidat povezuje početak i cilj ravnom linijom uz provjeru footprinta.
 2. Iz promjene položaja i orijentacije računa se zakrivljenost i potreban
    radijus `R = 1 / |kappa|`. Provjerava se i kut između tangente putanje i
    uzdužne osi šasije. Bočna dionica s konstantnom orijentacijom ima beskonačan
    radijus, ali svejedno nije izvediva Ackermannom.
-3. Lokalni limit radijusa je 0.80 m; globalni Hybrid-A* koristi 1.10 m kako
-   bi ostavio rezervu za korekciju praćenja. Promjene smjera, rotacije na
-   mjestu i kratke Ackermann dionice između bočnih dionica obrađuje holonomski
-   kontroler.
+3. Lokalni limit radijusa je 0,80 m, a globalni Hybrid-A* koristi 1,10 m
+   kako bi ostavio prostor za korekciju praćenja. Na pravcu sa stalnom
+   orijentacijom dopuštena razlika između smjera translacije i uzdužne osi
+   (naprijed ili natrag) iznosi 0,025 rad. Veća razlika zahtijeva bočnu vožnju.
+   Ackermann može promijeniti smjer naprijed/natrag na označenoj točki putanje.
+   Holonomski kontroler preuzima rotacije na mjestu.
 4. Procjena vremena uključuje duljinu, brzine naprijed/natrag/bočno, kutnu
    brzinu, poravnanje šasije, promjene kuta kotača i trošak Ackermann promjene
    smjera. Uspoređuje se mješovita izvedba s potpuno holonomskom izvedbom iste
@@ -78,12 +86,55 @@ holonomski 0.20 m/s, poravnanje 0.25 rad/s, zakretanje kotača 1 rad/s.
 Stvarna brzina ovisi o clearanceu, kontroleru i potrebnom poravnanju kotača.
 
 Lattice skup gibanja usklađen je s lokalnim ograničenjem radijusa 0.80 m.
-Uklonjeni su izvorni lukovi radijusa 0.50–0.69 m. Trenutačni skup ima 96
-primitiva: 64 translacije i 32 rotacije na mjestu. Holonomski kandidat stoga
+Uklonjeni su izvorni lukovi radijusa 0.50–0.69 m. Trenutačni skup ima 160
+primitiva: 128 translacija (osam smjerova po orijentaciji) i 32 rotacije na mjestu. Holonomski kandidat stoga
 može izvesti oštar zavoj translacijom i zasebnim zakretom; Ackermann kandidat
 i dalje koristi glatke Hybrid-A* lukove radijusa najmanje 1.10 m.
 
 ## Zastoji i ponovno planiranje
+
+Od 3. studenoga 2026. MPPI u svakom ciklusu uzima referentnu točku do 45 cm
+ispred projekcije robota na trenutačnu dionicu. Simulira niz brzina i lukova
+uz ograničenja brzine, ubrzanja i kočenja. Kako se približava kraju dionice,
+referentna brzina opada. Ako cijeli taj pokret ima slobodan obris, početna
+procjena za uzorkovanje kombinira 75 % te reference i 25 % prethodnog rješenja.
+MPPI ocjenjuje jedan skup od 1200 uzoraka po ciklusu. Kad referenca prolazi
+kroz prepreku, uzorkovanje kreće od prethodnog rješenja.
+
+Pri promjeni smjera kontroler posebno provjerava slučaj u kojem je preostala
+samo završna točka dolazne dionice. Ako je robot prošao tu točku ili na
+preostaloj duljini više ne može postići zadan kut unutar tolerancije,
+adaptivni profil zakoči. Unutar 15 cm može se holonomski vratiti na točku
+i poravnati provjerenim zakretom prije nastavka iste putanje. Čisti
+Ackermann profil tada traži novi prilaz. Pomoć pri praćenju dopušta kretanje
+samo ako je referentna točka ispred robota u odabranom smjeru vožnje.
+
+U zabilježenoj vožnji 3. studenoga prvi izbor bila je mješovita putanja
+duljine 7,55 m, s procjenom trajanja 49,46 s. Ackermann alternativa
+imala je 8,95 m i procjenu 48,07 s. Prednost je imala kraća ruta.
+Kad adaptivna Lattice pretraga može upotrijebiti prošireni obris, koristi
+još 5 cm izvan osnovne rezerve od 4 cm i čuva taj prostor pri skraćivanju
+obilaska oko prepreke.
+
+U Gazebu je izvorni kontroler prekinuo praćenje snimljene putanje od 100
+poza na prvoj promjeni smjera. Ažurirana verzija prošla je istu putanju za
+85,1 s bez sudara. U 95 % uzoraka odstupanje od plana bilo je unutar 3,9 cm.
+Zabilježena su dva lokalna poravnanja prije nastavka u Ackermann načinu.
+Tri samostalna Ackermann cilja završila su s jednim planom po cilju.
+Ponovljena vožnja do zadanog odredišta `(7.05, -1.11, 1.596 rad)` u
+adaptivnom profilu koristila je holonomsku putanju, s jednim globalnim
+planom i završnom pogreškom položaja 3,0 cm.
+[Mjerenja, snimljena putanja i rezultati provjere](validation/ackermann-continuity-20261103.json)
+
+U novom terminalu možeš očitati zadnju globalnu odluku i zatim pratiti
+lokalne odluke dok traje vožnja u adaptivnom profilu.
+
+```bash
+source /opt/ros/humble/setup.bash
+export ROS_DOMAIN_ID=87 ROS_LOCALHOST_ONLY=1
+ros2 topic echo /navigation_plan_decision std_msgs/msg/String --once --qos-durability transient_local
+ros2 topic echo /navigation_mode_decision std_msgs/msg/String
+```
 
 MPPI može pri kraju dionice prije promjene smjera pronaći gotovo nultu
 brzinu. DWB uz novu prepreku može oscilirati između suprotnih naredbi.

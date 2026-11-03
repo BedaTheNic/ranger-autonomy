@@ -78,6 +78,12 @@ TEST(ModePolicy, CarReferenceKeepsDirectionSequenceAtACusp)
   EXPECT_TRUE(d.modes[0]);EXPECT_TRUE(d.modes[1]);
   EXPECT_FALSE(std::isfinite(d.holonomic.seconds));
 }
+TEST(ModePolicy, ShallowFixedHeadingCrabIsNotAnAckermannStraight)
+{
+  MotionLimits limits;
+  EXPECT_FALSE(edge({{0,0,0},{2,.10,0}},0,limits).ackermann);
+  EXPECT_TRUE(edge({{0,0,0},{-2,.01,0}},0,limits).ackermann);
+}
 TEST(ModePolicy, TerminalCarSectionCanFinishByHolonomicAlignment)
 {
   std::vector<Pose2> path{{0,0,0},{1,0,0}};

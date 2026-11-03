@@ -2,6 +2,7 @@
 #include <sstream>
 #include "mode_policy.hpp"
 #include "heading_maneuver.hpp"
+#include "reversal_alignment.hpp"
 #include "nav2_core/controller.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "pluginlib/class_list_macros.hpp"
@@ -48,6 +49,7 @@ public:
     reference_=path;cursor_=0;handoff_=0;loaded_mode_=0;loaded_end_=0;
     strict_ackermann_=strictAckermannReference(points(path),limits_);
     recovery_active_=false;recovery_heading_.reset();
+    reversal_target_.reset();
     // Keep the current driving mode across a necessary global replan.
   }
   void setSpeedLimit(const double & limit,const bool & percentage) override
@@ -96,6 +98,10 @@ public:
       while(end<decision.modes.size() && !decision.modes[end]) {++end;}
     }
     const double now=clock_->now().seconds();
+    if (reversal_target_) {
+      auto alignment = alignReversal(pose, speed, checker, decision, now);
+      if (alignment) {return *alignment;}
+    }
     if(wanted_ack && mode_==2 && now-mode_stamp_<minimum_mode_time_) {wanted_ack=false;}
     if(wanted_ack && mode_==2 && projection.error>.06) {wanted_ack=false;}
     if(wanted_ack && now<alignment_blocked_until_) {wanted_ack=false;}
@@ -147,6 +153,20 @@ public:
     }
     geometry_msgs::msg::TwistStamped command;
     try {command=(mode_==1?ack_:holo_)->computeVelocityCommands(pose,speed,checker);}
+    catch (const ReversalAlignment & reversal) {
+      const auto target = planar(reversal.target.pose);
+      if (distance(planar(pose.pose), target) > .15) {
+        throw AckermannTrackingError("Missed reversal outside the local rejoin tolerance");
+      }
+      nav_msgs::msg::Path approach;
+      approach.header = pose.header;
+      approach.poses = {pose, reversal.target};
+      holo_->setPlan(approach);
+      reversal_target_ = target;
+      braking_for_reversal_ = true;
+      auto alignment = alignReversal(pose, speed, checker, decision, now);
+      return alignment.value_or(stop);
+    }
     catch(const std::runtime_error & error) {
       if(mode_!=1 || std::string(error.what())!="Optimizer fail to compute path") {throw;}
       // Only hand a monotonic part to the holonomic controller: never jump over
@@ -176,6 +196,35 @@ public:
     return command;
   }
 private:
+  std::optional<geometry_msgs::msg::TwistStamped> alignReversal(
+    const geometry_msgs::msg::PoseStamped & pose, const geometry_msgs::msg::Twist & speed,
+    nav2_core::GoalChecker * checker, const Decision & decision, double now)
+  {
+    geometry_msgs::msg::TwistStamped command;
+    command.header = pose.header;
+    const auto robot = planar(pose.pose);
+    const double speed_xy = std::hypot(speed.linear.x, speed.linear.y);
+    if (braking_for_reversal_ && (speed_xy > .025 || std::abs(speed.angular.z) > .04)) {
+      publish("BRAKING_FOR_ALIGNMENT", decision, 0.0, now);
+      return command;
+    }
+    braking_for_reversal_ = false;
+    if (distance(robot, *reversal_target_) < .03 &&
+      std::abs(wrap(reversal_target_->a - robot.a)) < .06)
+    {
+      // Finish the pivot and stop before loading the outgoing gear.
+      if (speed_xy > .025 || std::abs(speed.angular.z) > .04) {return command;}
+      reversal_target_.reset();
+      return std::nullopt;
+    }
+    // Reuse the footprint-checked terminal approach and committed rotation.
+    // The Ackermann path handler retains its unconsumed outgoing leg.
+    command = holo_->computeVelocityCommands(pose, speed, checker);
+    feasible_ = false;
+    publish(std::abs(command.twist.angular.z) > 1e-6 ? "HOLONOMIC_ROTATE" : "HOLONOMIC_RECOVERY",
+      decision, 0.0, now);
+    return command;
+  }
   std::optional<geometry_msgs::msg::TwistStamped> recover(
     const geometry_msgs::msg::PoseStamped & pose,const geometry_msgs::msg::Twist & speed)
   {
@@ -253,6 +302,8 @@ private:
   double mode_stamp_{-100},minimum_mode_time_{2},alignment_blocked_until_{-100},last_publish_{-100};
   double speed_scale_{1.0};
   HeadingManeuver recovery_heading_;
+  std::optional<Pose2> reversal_target_;
+  bool braking_for_reversal_{false};
   nav_msgs::msg::Path recovery_path_;
   bool recovery_active_{false},recovery_braking_{false};double recovery_until_{0};
 };

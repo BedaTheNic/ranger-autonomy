@@ -37,7 +37,10 @@ inline Edge edge(const std::vector<Pose2> & path,size_t i,const MotionLimits & l
     }
   }
   e.radius=curvature>1e-6?1/curvature:INFINITY;
-  e.ackermann=slip<.16 && e.radius>=limits.radius-.02;
+  // A fixed-heading crab translation can have infinite radius yet still
+  // require lateral velocity. Allow rounding, not sustained sideways slip.
+  const double slip_tolerance = std::abs(da) < 1e-6 ? .025 : .16;
+  e.ackermann=slip<slip_tolerance && e.radius>=limits.radius-.02;
   return e;
 }
 inline std::vector<bool> schedule(const std::vector<Pose2> & path,const MotionLimits & limits,

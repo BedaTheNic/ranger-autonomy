@@ -14,9 +14,9 @@ Usage:
   bash release.sh source [OUTPUT_DIRECTORY]   # independent GitHub-ready source tree + archive
 
 Examples:
-  bash release.sh build ranger-autonomy:jazzy-r3 linux/amd64
-  bash release.sh publish docker.io/USER/ranger-autonomy:jazzy-r3
-  bash release.sh publish ghcr.io/ORG/ranger-autonomy:jazzy-r3 linux/amd64 registry.example.com/TEAM/ranger-autonomy:jazzy-r3
+  bash release.sh build ranger-autonomy:jazzy-r4 linux/amd64
+  bash release.sh publish docker.io/USER/ranger-autonomy:jazzy-r4
+  bash release.sh publish ghcr.io/ORG/ranger-autonomy:jazzy-r4 linux/amd64 registry.example.com/TEAM/ranger-autonomy:jazzy-r4
 
 Authenticate to each registry with docker login before publish.
 BUILD_JOBS controls compiler parallelism per platform (default 2).

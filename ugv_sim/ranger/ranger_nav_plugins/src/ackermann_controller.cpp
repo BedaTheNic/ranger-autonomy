@@ -8,6 +8,7 @@
 #include <exception>
 #include <optional>
 #include "navigation_geometry.hpp"
+#include "reversal_alignment.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "nav2_mppi_controller/controller.hpp"
 #include "pluginlib/class_list_macros.hpp"
@@ -46,6 +47,7 @@ public:
   bool isHolonomic() override {return false;}
   void setDirection(int direction) {direction_ = direction;}
   void setSteering(float curvature) {initial_curvature_ = curvature;}
+  float minimumRadius() const {return original_->getMinTurningRadius();}
   void setDynamics(float dt, float acceleration, float deceleration,
     float steering_rate, float wheelbase)
   {
@@ -186,6 +188,7 @@ public:
     }
     if (direction != previous_direction_) {reset(); previous_direction_ = direction;}
     feasible_model_->setDirection(direction);
+    seedFromReference(path, planar(pose.pose), speed, direction);
 #ifdef RANGER_NAV2_JAZZY
     return mppi::Optimizer::evalControl(pose, speed, path, goal, checker);
 #else
@@ -193,9 +196,81 @@ public:
 #endif
   }
 private:
+  // A slow previous solution centres the next batch of noisy controls around
+  // another crawl. Give MPPI a rolling path-following reference on clear arcs.
+  // This changes where it samples, never the command returned after scoring.
+  void seedFromReference(const nav_msgs::msg::Path & plan, Pose2 robot,
+    const geometry_msgs::msg::Twist & measured, int direction)
+  {
+    if (plan.poses.size() < 2 || direction * measured.linear.x < -0.02) {
+      return;
+    }
+    const auto reference = points(plan);
+    const auto footprint = costmap_ros_->getRobotFootprint();
+    const auto & limits = settings_.constraints;
+    const double speed_limit = direction > 0 ? limits.vx_max : -limits.vx_min;
+    const double dt = settings_.model_dt;
+    const double radius = feasible_model_->minimumRadius();
+    double magnitude = std::min(std::abs(measured.linear.x), speed_limit);
+    size_t cursor = 0;
+    auto seed = control_sequence_;
+    for (size_t i = 0; i < seed.vx.size(); ++i) {
+      const auto projection = project(reference, robot, cursor);
+      cursor = projection.index;
+      const auto target = lookahead(reference, projection, 0.45);
+      auto guide = pursuit(robot, target, true, direction, radius, speed_limit);
+      const double curvature = guide.linear.x == 0.0 ? 0.0 : guide.angular.z / guide.linear.x;
+      // The transformed subpath ends at the next cusp or goal. Taper as the
+      // lookahead shortens and never accelerate toward a point behind that end.
+      double requested = std::abs(guide.linear.x);
+      if (std::abs(curvature) > 1e-6) {
+        requested = std::min(requested, limits.wz / std::abs(curvature));
+      }
+      magnitude = std::clamp(requested, magnitude - deceleration_ * dt,
+        magnitude + acceleration_ * dt);
+      guide.linear.x = direction * magnitude;
+      guide.angular.z = guide.linear.x * curvature;
+      const auto next = integrate(robot, guide, dt);
+      if (!pathFree({robot, next}, *costmap_, footprint)) {
+        return;  // Keep the previous optimum, including its braking solution.
+      }
+      // Retain some of the optimizer's previous avoidance and steering history.
+      seed.vx(i) = 0.75 * guide.linear.x + 0.25 * seed.vx(i);
+      seed.wz(i) = 0.75 * guide.angular.z + 0.25 * seed.wz(i);
+      robot = next;
+    }
+    control_sequence_ = std::move(seed);
+  }
   std::shared_ptr<FeasibleAckermannModel> feasible_model_;
   int previous_direction_{1};
   float acceleration_, deceleration_, steering_rate_, wheelbase_;
+};
+
+class ReversalPathHandler : public mppi::PathHandler
+{
+public:
+  bool atEndOfIncomingLeg() const
+  {
+    return enforce_path_inversion_ && inversion_locale_ != 0 &&
+           global_plan_up_to_inversion_.poses.size() == 1;
+  }
+
+  bool needsCuspApproach(const Pose2 & robot, const nav_msgs::msg::Path & local_plan,
+    int direction, double radius) const
+  {
+    if (!atEndOfIncomingLeg() || local_plan.poses.size() != 1) {
+      return false;
+    }
+    const auto cusp = planar(local_plan.poses.back().pose);
+    const double remaining = distance(robot, cusp);
+    const double along = (cusp.x - robot.x) * std::cos(robot.a) +
+      (cusp.y - robot.y) * std::sin(robot.a);
+    // No more incoming geometry. The car cannot gain the missing heading
+    // over the remaining approach distance, or has already passed the cusp.
+    const double error = std::abs(wrap(cusp.a - robot.a));
+    return (remaining <= inversion_xy_tolerance_ && error > inversion_yaw_tolerance + remaining / radius) ||
+           (remaining > inversion_xy_tolerance_ && direction * along <= 0.0);
+  }
 };
 
 class AckermannController : public nav2_core::Controller
@@ -255,6 +330,9 @@ public:
     }
     std::lock_guard<std::mutex> parameter_lock(*parameters_->getLock());
     auto plan = path_.transformPath(pose);
+    if (path_.needsCuspApproach(planar(pose.pose), plan, optimizer_.direction(), nodeRadius())) {
+      throw ReversalAlignment(plan.poses.back());
+    }
     optimizer_.setSteering(curvature_.load());
     auto grid = costmap_->getCostmap();
     std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> map_lock(*grid->getMutex());
@@ -280,6 +358,13 @@ public:
       const double acceleration=parent_.lock()->get_parameter(name_ + ".tracking_acceleration").as_double();
       auto candidate=pursuit(robot,target,true,optimizer_.direction(),radius,
         std::min({.08,speed_limit,std::abs(speed.linear.x)+acceleration*.1}));
+      if (plan.poses.size() == 1 && candidate.linear.x == 0.0 && speed_limit > 0.0) {
+        // Progress assistance already observed a stall (or MPPI exhausted its
+        // candidates). Repeating zero until the progress timeout cannot put
+        // the endpoint back in front of the car in its current gear.
+        if (path_.atEndOfIncomingLeg()) {throw ReversalAlignment(plan.poses.back());}
+        throw AckermannTrackingError("Final Ackermann approach exhausted before reaching the goal pose");
+      }
       if(collisionFree(robot,candidate,*grid,costmap_->getRobotFootprint())) {
         command.twist=candidate;
         optimizer_error=nullptr;
@@ -328,7 +413,7 @@ private:
   bool visualize_{false}; double reset_period_{1.0};
   std::unique_ptr<mppi::ParametersHandler> parameters_;
   FeasibleOptimizer optimizer_;
-  mppi::PathHandler path_;
+  ReversalPathHandler path_;
   mppi::TrajectoryVisualizer visualizer_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr steering_sub_;
   std::atomic<float> curvature_{0.0f};

@@ -6,7 +6,7 @@ on:
       tag:
         description: Image release tag
         required: true
-        default: jazzy-r3
+        default: jazzy-r4
   push:
     tags: ['jazzy-*']
   pull_request:
@@ -112,7 +112,8 @@ jobs:
             "The archive includes a non-secret .env preset for this release, Compose and robot.sh." \
             "" '```bash' 'bash robot.sh pull' 'bash robot.sh external' 'bash robot.sh check' '```' \
             "" "external uses the existing robot SLAM. For our SLAM, stop the existing SLAM only and run bash robot.sh mapping." \
-            "" "Physical drive output remains disconnected pending steering-feedback and command-arbitration integration." \
+            "" "The optional drive gateway starts disarmed; run bash drive.sh up, then explicitly arm before sending a new goal." \
+            "Adaptive/Ackermann control still requires verified measured steering feedback. Other /cmd_vel publishers are permitted; arbitration is not implemented." \
             > deployment/RELEASE_NOTES.md
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" deployment/ranger-hardware-deploy.tar.gz --clobber
