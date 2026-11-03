@@ -4,7 +4,8 @@ Adaptive Ranger Mini navigation and structured logging, split into separate ROS 
 
 Current deployment helpers use `ranger_hero_<service>` container names. The drive
 gateway permits other `/cmd_vel` publishers and has no elapsed-time disarm;
-command timeout, odometry and E-stop checks remain. Existing installations can
+command timeout, odometry and E-stop checks remain. The gateway forwards accepted
+controller speeds unchanged, without a commissioning maximum-speed clamp. Existing installations can
 apply a pinned revision with `autonomy_stack/hardware/apply_update.sh`.
 Ackermann ROS/CAN captures use `ackermann_check.sh`; see the hardware deployment
 instructions for the current update and diagnostic procedures.
@@ -17,10 +18,10 @@ instructions for the current update and diagnostic procedures.
 
 ## Deploy on the robot
 
-After the `jazzy-r4` workflow has completed, download the release deployment bundle:
+After the `jazzy-r5` workflow has completed, download the release deployment bundle:
 
 ```bash
-curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r4/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
+curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r5/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
 tar -xzf ranger-hardware-deploy.tar.gz
 cd ranger-hardware
 bash robot.sh pull
@@ -29,7 +30,7 @@ bash robot.sh check
 ```
 
 The bundle includes a non-secret `.env` preset. The image is
-`ghcr.io/bedathenic/ranger-autonomy:jazzy-r4`, for the robot’s amd64 architecture.
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r5`, for the robot’s amd64 architecture.
 For a private GHCR package, first run `docker login ghcr.io -u BedaTheNic` on the robot.
 No source checkout or build is needed on the robot.
 
@@ -48,11 +49,13 @@ holonomic motion test passed on the robot; full adaptive/Ackermann navigation
 still requires verified measured steering feedback and physical calibration.
 The gateway permits other `/cmd_vel` publishers; arbitration is not implemented.
 
-`jazzy-r4` rebuilds the current local planner/controller sources and matching
-configs: shortest feasible route selection, direct/shortcut holonomic paths,
-diagonal velocity candidates, and Ackermann reference seeding and reversal
-alignment. Container names remain `ranger_hero_<service>`, with no 60-second
-arm expiry. The existing `jazzy-r3-gui` viewer remains compatible.
+`jazzy-r5` rebuilds the latest local planning, tracking, wheel-control and
+logging sources. It includes validated raw/smoothed Hybrid routes, retained-path
+validation and local repair, and a separate `ranger_hero_motion-guard` container
+for the developed stopping-distance checks. The gateway's former 0.05 m/s and
+0.10 rad/s clamp and its hard commissioning ceilings are removed. Configured
+Nav2 velocity/acceleration limits and obstacle-dependent braking remain.
+The existing `jazzy-r3-gui` viewer is compatible.
 
 For an existing installation, preserve `.env` (including `NAV_PROFILE`), maps
 and logs, stop/disarm driving, change `AUTONOMY_IMAGE` to the new tag, then pull

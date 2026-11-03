@@ -72,8 +72,8 @@ commands:
   optional_commissioning_gateway:
     compose: compose.drive.yaml
     starts_disarmed: true
-    max_linear_mps: 0.05
-    max_angular_radps: 0.10
+    speed_policy: controller_limits
+    gateway_speed_limited: false
     command_timeout_s: 0.30
     elapsed_time_disarm: false
     requires_exclusive_cmd_vel: false
@@ -86,6 +86,14 @@ navigation:
   canonical_config_directory: ugv_sim/ranger/ranger_mini/config
   log_rotation_bytes: 20971520
   one_application_process_per_service: true
+  motion_guard:
+    service: motion-guard
+    candidate_input: /cmd_vel_candidate
+    output: /cmd_vel_nav
+    scan: /scan_obstacles
+    odometry: /odom
+    costmap: /local_costmap/costmap_raw
+  retained_path_validity_service: /is_retained_path_valid
   robot_planning_probe:
     action: /compute_path_to_pose
     succeeded: true

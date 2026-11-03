@@ -28,6 +28,27 @@ def controller():
 
 
 class ControllerTest(unittest.TestCase):
+    def test_recorded_lateral_commands_keep_rolling_on_each_measured_branch(self):
+        node = controller()
+        node.positions = [-math.pi/2, math.pi/2] * 2
+        node.targets = node.positions[:]
+        for vy_sign in (1, -1):
+            for vx, vy in ((.0002135, -.0602226), (-.0003847, -.1199994)):
+                node.command = vx, vy_sign * vy, 0.
+                Commander.update(node)
+                for a, speed, measured in zip(node.targets, node.pub_vel.message.data, node.positions):
+                    self.assertLess(abs(a - measured), .01)
+                    self.assertAlmostEqual(.08 * speed * math.sin(measured), vy_sign * vy, places=4)
+
+    def test_alignment_gate_uses_measured_branch_while_target_catches_up(self):
+        node = controller()
+        node.positions = [-1.2]*4
+        node.targets = [.01]*4
+        node.command = (-.0004, -.12, 0.)
+        Commander.update(node)
+        self.assertLess(node.targets[0], 0.)
+        self.assertEqual(list(node.pub_vel.message.data), [0.]*4)
+
     def test_sparse_clock_does_not_undo_steering_command(self):
         node = controller()
         Commander.update(node)

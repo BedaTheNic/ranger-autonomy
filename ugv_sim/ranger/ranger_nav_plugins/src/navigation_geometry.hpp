@@ -160,8 +160,35 @@ inline bool poseFree(const Pose2 & p,nav2_costmap_2d::Costmap2D & map,
   if(!std::isfinite(p.x)||!std::isfinite(p.y)||!std::isfinite(p.a) ||
     !map.worldToMap(p.x,p.y,x,y) || map.getCost(x,y)>=253) {return false;}
   nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *> checker(&map);
-  const double cost=checker.footprintCostAtPose(p.x,p.y,p.a,footprint);
-  return cost>=0 && cost<254;
+  nav2_costmap_2d::Footprint polygon;
+  nav2_costmap_2d::transformFootprint(p.x,p.y,p.a,footprint,polygon);
+  if(polygon.size()<3) {return false;}
+  const double cost=checker.footprintCost(polygon);
+  if(cost<0 || cost>=254) {return false;}
+  // The Nav2 polygon checker rasterizes edges. A small occupied or unknown
+  // island can lie wholly inside the padded polygon between samples.
+  unsigned min_x=x,max_x=x,min_y=y,max_y=y;
+  for(const auto & vertex:polygon) {
+    unsigned vx,vy;
+    if(!map.worldToMap(vertex.x,vertex.y,vx,vy)) {return false;}
+    min_x=std::min(min_x,vx);max_x=std::max(max_x,vx);
+    min_y=std::min(min_y,vy);max_y=std::max(max_y,vy);
+  }
+  const auto * costs=map.getCharMap();
+  for(unsigned row=min_y;row<=max_y;++row) {
+    const auto offset=size_t(row)*map.getSizeInCellsX();
+    for(unsigned col=min_x;col<=max_x;++col) {
+      if(costs[offset+col]<254) {continue;}
+      double wx,wy;map.mapToWorld(col,row,wx,wy);
+      bool inside=false;
+      for(size_t i=0,j=polygon.size()-1;i<polygon.size();j=i++) {
+        const auto & a=polygon[i];const auto & b=polygon[j];
+        if((a.y>wy)!=(b.y>wy) && wx<(b.x-a.x)*(wy-a.y)/(b.y-a.y)+a.x) {inside=!inside;}
+      }
+      if(inside) {return false;}
+    }
+  }
+  return true;
 }
 inline bool rotationFree(const Pose2 & p,double heading,nav2_costmap_2d::Costmap2D & map,
   const nav2_costmap_2d::Footprint & footprint)

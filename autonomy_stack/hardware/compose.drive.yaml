@@ -2,7 +2,7 @@ name: ranger-drive
 services:
   drive-guard:
     container_name: ranger_hero_drive-guard
-    image: ${AUTONOMY_IMAGE:-ghcr.io/bedathenic/ranger-autonomy:jazzy-r4}
+    image: ${AUTONOMY_IMAGE:-ghcr.io/bedathenic/ranger-autonomy:jazzy-r5}
     network_mode: host
     ipc: private
     init: true
@@ -19,8 +19,6 @@ services:
       RANGER_LOG_ROOT: /logs
       RANGER_LOG_SERVICE: drive-guard
       RANGER_DEPLOYMENT_ID: drive-test
-      DRIVE_MAX_LINEAR: "0.05"
-      DRIVE_MAX_ANGULAR: "0.10"
       DRIVE_COMMAND_TIMEOUT: "0.30"
     command: [python3, /opt/autonomy/drive_guard.py]
     volumes:

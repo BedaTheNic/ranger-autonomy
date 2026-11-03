@@ -33,6 +33,10 @@ def setup(context):
     profile = os.environ.get('NAV_PROFILE', 'adaptive' if hardware else 'holonomic')
     if profile not in ('holonomic', 'ackermann', 'adaptive'):
         raise RuntimeError('NAV_PROFILE must be holonomic, ackermann or adaptive')
+    # Hardware Compose owns a separate stopping-distance guard. The legacy
+    # simulation Compose retains its existing command path; native simulation
+    # wires its guard in ranger_mini/launch/navigation.launch.py.
+    controller_output = '/cmd_vel_candidate' if hardware else '/cmd_vel_nav'
     config = Path(os.environ.get('AUTONOMY_CONFIG', '/config'))
     runtime = Path(tempfile.mkdtemp(prefix='autonomy-params-'))
 
@@ -83,6 +87,17 @@ def setup(context):
             raise RuntimeError('Hardware uses existing /odom and TF; do not start a second EKF')
         nodes = [node('robot_localization', 'ekf_node', 'ekf_filter_node',
                       [params('ekf_sim.yaml')])]
+    elif component == 'motion-guard':
+        common = yaml.safe_load(Path(params('navigation_common.yaml')).read_text())
+        local = common['local_costmap']['local_costmap']['ros__parameters']
+        nodes = [node('ranger_nav_plugins', 'navigation_motion_guard', 'navigation_motion_guard',
+                      extra={'adaptive': profile == 'adaptive',
+                             'footprint': local['footprint'],
+                             'footprint_padding': local['footprint_padding'],
+                             'control_frequency': 20.0 if profile == 'ackermann' else 10.0},
+                      remappings=[('cmd_vel', '/cmd_vel_nav'),
+                                  ('scan', os.environ.get('OBSTACLE_SCAN_TOPIC', '/scan_obstacles') if hardware else '/scan'),
+                                  ('odometry/filtered', '/odom' if hardware else '/odometry/filtered')])]
     elif component in ('global-localization', 'slam', 'slam-lifecycle',
                        'map-server', 'amcl', 'localization-lifecycle'):
         mode = ('mapping' if component in ('slam', 'slam-lifecycle') else
@@ -126,7 +141,7 @@ def setup(context):
             # Raw navigation output does not directly drive physical hardware.
             nodes = [node('nav2_controller', 'controller_server', 'controller_server',
                           files, remappings=[('cmd_vel', '/cmd_vel_nav_raw' if profile == 'ackermann'
-                                             else '/cmd_vel_nav'),
+                                             else controller_output),
                                              *([('joint_states', os.environ.get(
                                                  'STEERING_FEEDBACK_TOPIC', '/joint_states'))] if hardware else [])])]
             if profile == 'ackermann' and not hardware:
@@ -142,7 +157,7 @@ def setup(context):
                              'max_forward_speed': control['vx_max'],
                              'max_reverse_speed': abs(control['vx_min']),
                              'max_angular_speed': control['wz_max'],
-                         }, remappings=[('cmd_vel', '/cmd_vel_nav')])])
+                         }, remappings=[('cmd_vel', controller_output)])])
         elif component in ('velocity-smoother', 'command-guard'):
             if profile != 'ackermann':
                 raise RuntimeError(component + ' is only used by the standalone ackermann profile')
@@ -159,7 +174,7 @@ def setup(context):
                                   'max_forward_speed': control['vx_max'],
                                   'max_reverse_speed': abs(control['vx_min']),
                                   'max_angular_speed': control['wz_max'],
-                              }, remappings=[('cmd_vel', '/cmd_vel_nav')])]
+                              }, remappings=[('cmd_vel', controller_output)])]
         elif component == 'planner':
             extra = {}
             if profile in ('holonomic', 'adaptive'):
@@ -177,7 +192,8 @@ def setup(context):
                                        else '/cmd_vel_nav')]),
                      node('nav2_bt_navigator', 'bt_navigator', 'bt_navigator', files, {
                          'default_nav_to_pose_bt_xml': str(config / 'navigate_to_pose.xml'),
-                         'default_nav_through_poses_bt_xml': str(config / 'navigate_through_poses.xml')})]
+                         'default_nav_through_poses_bt_xml': str(config / 'navigate_through_poses.xml')},
+                          remappings=[('is_path_valid', '/is_retained_path_valid')])]
             if component == 'behaviors':
                 nodes = nodes[:1]
             elif component == 'bt-navigator':

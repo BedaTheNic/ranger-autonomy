@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='ranger-autonomy:ci')
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--profile', default='adaptive', choices=['adaptive', 'holonomic', 'ackermann'])
     parser.add_argument('--rmw', default='rmw_fastrtps_cpp',
                         choices=['rmw_cyclonedds_cpp', 'rmw_fastrtps_cpp'])
     args = parser.parse_args()
@@ -21,20 +22,22 @@ def main():
     output = (args.output or Path(tempfile.mkdtemp(prefix='ranger-compose-test-'))).resolve()
     output.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, AUTONOMY_IMAGE=args.image)
+    profiles = ['--profile', 'scan-adapter']
+    if args.profile == 'ackermann':profiles += ['--profile', 'ackermann']
     raw = subprocess.check_output(['docker', 'compose', '--env-file', str(hardware/'.env.example'),
-                                   '-f', str(hardware/'compose.yaml'), '--profile', 'scan-adapter',
+                                   '-f', str(hardware/'compose.yaml'), *profiles,
                                    'config', '--format', 'json'], env=env)
     services = {}
     for name, service in json.loads(raw)['services'].items():
         environment = dict(service['environment'])
         environment.update(ROS_DOMAIN_ID='211', RMW_IMPLEMENTATION=args.rmw,
-                           NAV_PROFILE='adaptive', OBSTACLE_SCAN_TOPIC='/autonomy/scan',
+                           NAV_PROFILE=args.profile, OBSTACLE_SCAN_TOPIC='/autonomy/scan',
                            RANGER_DEPLOYMENT_ID='compose-test', RANGER_LOG_MAX_BYTES='65536')
         services[name] = dict(image=args.image, command=service['command'], init=True,
                              environment=environment, volumes=[str(output/'logs')+':/logs'],
                              networks=['isolated'], stop_signal='SIGINT', stop_grace_period='25s')
     services['fixture'] = dict(image=args.image, init=True,
-        command=['python3', '/tmp/fixture.py', 'adaptive', '--external'],
+        command=['python3', '/tmp/fixture.py', args.profile, '--external'],
         environment=dict(ROS_DOMAIN_ID='211', RMW_IMPLEMENTATION=args.rmw,
                          FASTDDS_BUILTIN_TRANSPORTS='UDPv4'),
         volumes=[str(hardware/'tests/image_smoke.py')+':/tmp/fixture.py:ro'], networks=['isolated'])
@@ -66,7 +69,7 @@ def main():
         manifests = list((output/'logs').rglob('manifest.json'))
         assert len(manifests) == len(services)-1, len(manifests)
         assert all(json.loads(path.read_text()).get('status') == 'finished' for path in manifests)
-        summary = dict(passed=True, image=args.image, service_exit_codes=statuses,
+        summary = dict(passed=True, image=args.image, nav_profile=args.profile, service_exit_codes=statuses,
                        parts=len(files), records=len(records_list), max_part_bytes=65536,
                        events=sorted(events), ros_domain=211, network='internal Docker bridge',
                        rmw=args.rmw, fastdds_builtin_transports='UDPv4',

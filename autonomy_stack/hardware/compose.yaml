@@ -82,6 +82,10 @@ services:
     container_name: ranger_hero_behaviors
     <<: *runtime
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=behaviors]
+  motion-guard:
+    container_name: ranger_hero_motion-guard
+    <<: *runtime
+    command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=motion-guard]
   bt-navigator:
     container_name: ranger_hero_bt-navigator
     <<: *runtime

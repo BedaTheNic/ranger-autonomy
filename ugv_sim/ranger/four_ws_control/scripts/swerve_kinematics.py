@@ -2,6 +2,10 @@
 import math
 
 
+# Symmetric mechanical stops in ranger_mini_gazebo.xacro, in radians.
+STEERING_LIMIT = 2.1
+
+
 def inverse_kinematics(vx, vy, wz, wheelbase, track, radius, max_speed,
                        previous_angles=None):
     """Return steering radians and signed wheel rad/s in FL, FR, RL, RR order."""
@@ -16,20 +20,18 @@ def inverse_kinematics(vx, vy, wz, wheelbase, track, radius, max_speed,
         ux, uy = vx - wz*y, vy + wz*x
         speed = math.hypot(ux, uy) / radius
         if speed < 1e-9:
-            angle = previous_angles[i]
+            angle = min(STEERING_LIMIT, max(-STEERING_LIMIT, previous_angles[i]))
         else:
-            angle = math.atan2(uy, ux)
-            if angle > math.pi/2:
-                angle -= math.pi
-                speed = -speed
-            elif angle < -math.pi/2:
-                angle += math.pi
-                speed = -speed
-            # At the lateral boundary choose the nearest equivalent orientation.
-            if abs(abs(angle) - math.pi/2) < 1e-9:
-                other = -angle
-                if abs(other - previous_angles[i]) < abs(angle - previous_angles[i]):
-                    angle, speed = other, -speed
+            direct = math.atan2(uy, ux)
+            reverse = direct - math.copysign(math.pi, direct)
+            # Reversing the rolling direction gives the same contact velocity.
+            # The steering joint has hard stops, so compare actual shaft travel.
+            if abs(direct) > STEERING_LIMIT or (
+                    abs(reverse) <= STEERING_LIMIT and
+                    abs(reverse - previous_angles[i]) < abs(direct - previous_angles[i])):
+                angle, speed = reverse, -speed
+            else:
+                angle = direct
         angles.append(angle)
         speeds.append(speed)
     scale = max(1.0, max(abs(s) for s in speeds) / max_speed)

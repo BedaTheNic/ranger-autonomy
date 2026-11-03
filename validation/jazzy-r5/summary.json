@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-03",
+  "architecture": "linux/amd64",
+  "image": "ranger-autonomy:jazzy-r5",
+  "local_image_id": "sha256:733c4ff94264e48a1412f91c221d5677b4f026dc568c06e93f821a8b7ba42900",
+  "native_planner": {
+    "build": "passed",
+    "reported_tests": 76,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0
+  },
+  "wheel_control_tests": 19,
+  "jazzy": {
+    "build": "passed",
+    "reported_navigation_tests": 76,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 1,
+    "logging_tests": 11
+  },
+  "compose_profiles": [
+    "adaptive",
+    "holonomic",
+    "ackermann"
+  ],
+  "retained_path_validity": "passed",
+  "controller_guard_wiring": "passed",
+  "stale_scan_stop": "passed",
+  "action_cancellation": "passed",
+  "drive_gateway": {
+    "passed": true,
+    "commissioning_speed_cap": false,
+    "legacy_speed_variables_ignored": true,
+    "forward_reverse_diagonal_passthrough": true,
+    "command_timeout_retained": true,
+    "estop_retained": true
+  },
+  "verified_source_config_hashes": 79,
+  "physical_robot": false
+}

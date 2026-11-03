@@ -37,31 +37,6 @@ inline std::vector<Pose2> directHolonomic(const Pose2 & start,const Pose2 & goal
   }
   return {};
 }
-// Shorten an omni route, including optional lattice pivots. A pivot can move
-// or disappear only when a complete translate/pivot replacement is proven free.
-// Required rotations in narrow passages survive because that replacement fails.
-// Never apply this operation to a route constrained to Ackermann motion.
-inline std::vector<Pose2> shortcutHolonomic(const std::vector<Pose2> & path,
-  nav2_costmap_2d::Costmap2D & map,const nav2_costmap_2d::Footprint & footprint,
-  const std::function<bool()> & out_of_time=[] {return false;})
-{
-  if(path.empty()) {return {};}
-  std::vector<Pose2> result{path.front()};
-  for(size_t i=0;i+1<path.size();) {
-    if(out_of_time()) {result.insert(result.end(),path.begin()+i+1,path.end());break;}
-    size_t next=i+1;
-    std::vector<Pose2> replacement;
-    for(size_t j=path.size()-1;j>i+1;--j) {
-      if(out_of_time()) {break;}
-      replacement=directHolonomic(path[i],path[j],map,footprint);
-      if(!replacement.empty()) {next=j;break;}
-    }
-    if(replacement.empty()) {result.push_back(path[next]);}
-    else {result.insert(result.end(),replacement.begin()+1,replacement.end());}
-    i=next;
-  }
-  return result;
-}
 inline nav_msgs::msg::Path densePath(const std::vector<Pose2> & points,
   const std_msgs::msg::Header & header,double spacing=.04)
 {
@@ -83,6 +58,44 @@ inline nav_msgs::msg::Path densePath(const std::vector<Pose2> & points,
     }
   }
   return path;
+}
+inline nav_msgs::msg::Path checkedDensePath(const std::vector<Pose2> & route,
+  const std_msgs::msg::Header & header, nav2_costmap_2d::Costmap2D & map,
+  const nav2_costmap_2d::Footprint & footprint)
+{
+  auto result=densePath(route,header);
+  if(!pathFree(points(result),map,footprint)) {result.poses.clear();}
+  return result;
+}
+// Shorten an omni route, including optional lattice pivots. A pivot can move
+// or disappear only when a complete translate/pivot replacement is proven free.
+// Required rotations in narrow passages survive because that replacement fails.
+// Never apply this operation to a route constrained to Ackermann motion.
+inline std::vector<Pose2> shortcutHolonomic(const std::vector<Pose2> & path,
+  nav2_costmap_2d::Costmap2D & map,const nav2_costmap_2d::Footprint & footprint,
+  const std::function<bool()> & out_of_time=[] {return false;})
+{
+  if(path.empty()) {return {};}
+  std::vector<Pose2> result{path.front()};
+  for(size_t i=0;i+1<path.size();) {
+    if(out_of_time()) {result.insert(result.end(),path.begin()+i+1,path.end());break;}
+    size_t next=i+1;
+    std::vector<Pose2> replacement;
+    for(size_t j=path.size()-1;j>i+1;--j) {
+      if(out_of_time()) {break;}
+      replacement=directHolonomic(path[i],path[j],map,footprint);
+      if(!replacement.empty()) {
+        if(!checkedDensePath(replacement,std_msgs::msg::Header{},map,footprint).poses.empty()) {
+          next=j;break;
+        }
+        replacement.clear();
+      }
+    }
+    if(replacement.empty()) {result.push_back(path[next]);}
+    else {result.insert(result.end(),replacement.begin()+1,replacement.end());}
+    i=next;
+  }
+  return result;
 }
 inline bool preferShorterRoute(double a_length,double a_eta,double b_length,double b_eta)
 {

@@ -100,6 +100,7 @@ class Recorder(Node):
             (Twist, '/cmd_vel', 'control', 10),
             (Twist, '/cmd_vel_nav', 'control', 10),
             (Twist, '/cmd_vel_nav_raw', 'control', 10),
+            (Twist, '/cmd_vel_candidate', 'control', 10),
             (Twist, '/cmd_vel_ackermann_smoothed', 'control', 10),
             (Float64MultiArray, '/forward_position_controller/commands', 'base_control', self.sample_hz),
             (Float64MultiArray, '/forward_velocity_controller/commands', 'base_control', self.sample_hz),

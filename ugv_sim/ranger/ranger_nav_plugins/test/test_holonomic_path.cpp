@@ -113,3 +113,56 @@ TEST(HolonomicVelocity, DoesNotInventInstantDirectionOrRotationChanges)
   EXPECT_FALSE(alignedTranslation(1,1,.2,{-.05,.05,-.05,.05,.1,.2,.2}));
   EXPECT_FALSE(alignedTranslation(1,1,.2,{-.05,.05,-.05,.05,-.06,.05,0}));
 }
+
+#include "../src/route_quality.hpp"
+#include "../src/stopping_distance.hpp"
+
+TEST(RouteQuality, RetainedPathUsesReserveAndIgnoresPassedObstacle)
+{
+  Grid grid(400,120,.01,-1.,-.6,0);
+  auto base=footprint(); auto reserve=base; nav2_costmap_2d::padFootprint(reserve,.04);
+  std::vector<Pose2> path{{0,0,0},{.5,0,0},{1,0,0},{1.5,0,0},{2,0,0}};
+  unsigned mx,my; ASSERT_TRUE(grid.worldToMap(1.6,.35,mx,my)); grid.setCost(mx,my,254);
+  size_t cursor=1;
+  EXPECT_TRUE(retainedPathFree(path,{.7,0,0},cursor,grid,base));
+  EXPECT_FALSE(retainedPathFree(path,{.7,0,0},cursor,grid,reserve));
+  grid.setCost(mx,my,0); grid.worldToMap(0,0,mx,my); grid.setCost(mx,my,254);
+  EXPECT_TRUE(retainedPathFree(path,{.8,0,0},cursor,grid,reserve));
+}
+
+TEST(RouteQuality, NearStraightCanAlignWithoutChangingEndpointsOrLength)
+{
+  Grid grid(600,300,.02,-1.,-2.,0);
+  const Pose2 a{0,0,0}, b{8,.208,0};
+  auto path=points(densePath({a,b},std_msgs::msg::Header{}));
+  const double length=pathLength(path);
+  EXPECT_EQ(alignStraights(path,grid,footprint(),{}),1u);
+  EXPECT_NEAR(pathLength(path),length,1e-8);
+  EXPECT_DOUBLE_EQ(path.front().a,a.a);EXPECT_DOUBLE_EQ(path.back().a,b.a);
+  EXPECT_TRUE(pathFree(path,grid,footprint()));
+  auto diagonal=points(densePath({a,{2,1,0}},std_msgs::msg::Header{}));
+  EXPECT_EQ(alignStraights(diagonal,grid,footprint(),{}),0u);
+}
+
+TEST(StoppingDistance, SlowsBeforeObstacleAndAccountsForSensorDelay)
+{
+  Grid grid(400,120,.01,-1,-.6,0);
+  unsigned x,y;grid.worldToMap(.435,0,x,y);
+  for(unsigned row=0;row<grid.getSizeInCellsY();++row) {grid.setCost(x,row,254);}
+  Twist v;v.linear.x=.2;
+  EXPECT_DOUBLE_EQ(stoppingScale({0,0,0},v,v,0,.1,.4,.5,grid,footprint()),1.);
+  const auto limited=stoppingScale({0,0,0},v,v,.12,.1,.4,.5,grid,footprint());
+  EXPECT_LT(limited,1.);EXPECT_GT(limited,0.);
+  EXPECT_DOUBLE_EQ(stoppingScale({0,0,0},v,v,.3,.1,.4,.5,grid,footprint()),0.);
+}
+
+TEST(RouteQuality, InvalidSmoothingKeepsRawRouteAndItsReversal)
+{
+  Grid grid(300,200,.02,-2,-2,0);
+  const std::vector<Pose2> raw{{0,0,0},{1,0,0},{.5,0,0}};
+  EXPECT_EQ(selectHybrid(raw,{{0,0,0},{.5,0,0}},grid,footprint(),{}),HybridChoice::raw);
+  const std::vector<Pose2> bend{{0,0,0},{.4,.15,1.2},{1,0,0},{.5,0,0}};
+  EXPECT_EQ(selectHybrid(raw,bend,grid,footprint(),{}),HybridChoice::raw);
+  unsigned x,y;grid.worldToMap(.75,.2,x,y);grid.setCost(x,y,254);
+  EXPECT_EQ(selectHybrid(raw,bend,grid,footprint(),{}),HybridChoice::none);
+}

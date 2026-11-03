@@ -1,4 +1,4 @@
-# SIMULATION: planner adds 4 cm internally; validity checks use executing footprint.
+# SIMULATION: planner and retained-path validity both add the same 4 cm reserve.
 planner_server:
   ros__parameters:
     use_sim_time: true
@@ -15,13 +15,13 @@ planner_server:
       planning_padding: 0.04
       goal_connection_distance: 0.25
       Ackermann:
-        plugin: nav2_smac_planner/SmacPlannerHybrid
+        plugin: ranger_nav_plugins::ValidatedHybrid
         tolerance: 0.15
         allow_unknown: false
         max_iterations: 1000000
         max_on_approach_iterations: 1000
         max_planning_time: 1.0
-        smooth_path: true
+        smooth_path: false  # ValidatedHybrid smooths a copy and can retain the raw path.
         cache_obstacle_heuristic: false
         reverse_penalty: 1.5
         change_penalty: 0.3
@@ -57,8 +57,9 @@ planner_server:
         analytic_expansion_max_length: 0.0
         lookup_table_size: 0.05
         allow_reverse_expansion: false
-        # Length dominates; a small pivot cost resolves spatially equal routes.
-        rotation_penalty: 0.1
+        # A stationary chassis turn consumes steering and rotation time.
+        # Keep distance first when comparing the returned feasible routes.
+        rotation_penalty: 4.0
     expected_planner_frequency: 0.4
 controller_server:
   ros__parameters:

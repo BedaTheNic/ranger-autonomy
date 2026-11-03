@@ -87,12 +87,15 @@ private:
     for (size_t i = 0; i < 4; ++i) {
       const double x = i < 2 ? wheelbase_/2 : -wheelbase_/2;
       const double y = i % 2 == 0 ? track_/2 : -track_/2;
-      double a = std::atan2(v.y+v.theta*x, v.x-v.theta*y);
-      if (a > M_PI_2) {a -= M_PI;}
-      if (a < -M_PI_2) {a += M_PI;}
-      if (valid_ && std::abs(std::abs(a)-M_PI_2) < 1e-9 &&
-        std::abs(-a-previous_[i]) < std::abs(a-previous_[i])) {a = -a;}
-      result[i] = a;
+      const double last = valid_ ? previous_[i] : 0.0;
+      const double vx = v.x - v.theta*y, vy = v.y + v.theta*x;
+      if (std::hypot(vx, vy) < 1e-10) {result[i] = last; continue;}
+      const double direct = std::atan2(vy, vx);
+      const double reverse = direct - std::copysign(M_PI, direct);
+      // Match the bounded steering joints used by the Ranger Mini simulation.
+      constexpr double limit = 2.1;
+      result[i] = (std::abs(direct) > limit || (std::abs(reverse) <= limit &&
+        std::abs(reverse - last) < std::abs(direct - last))) ? reverse : direct;
     }
     return result;
   }

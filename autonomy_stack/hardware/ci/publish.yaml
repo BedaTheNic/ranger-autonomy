@@ -6,7 +6,7 @@ on:
       tag:
         description: Image release tag
         required: true
-        default: jazzy-r4
+        default: jazzy-r5
   push:
     tags: ['jazzy-*']
   pull_request:
@@ -46,13 +46,20 @@ jobs:
         run: >-
           docker run --rm --network none ranger-autonomy:ci
           bash /opt/autonomy/hardware/tests/unit_tests.sh
-      - name: Adaptive navigation and logging across separate containers
-        run: python3 autonomy_stack/hardware/tests/compose_smoke.py --image ranger-autonomy:ci --output /tmp/ranger-ci-validation
+      - name: Navigation profiles, motion guard and logging across separate containers
+        run: |
+          for profile in adaptive holonomic ackermann; do
+            python3 autonomy_stack/hardware/tests/compose_smoke.py --image ranger-autonomy:ci --profile "$profile" --output "/tmp/ranger-ci-validation/$profile"
+          done
+      - name: Drive gateway forwards configured speeds and retains stop checks
+        run: python3 autonomy_stack/hardware/tests/drive_smoke.py --image ranger-autonomy:ci --output /tmp/ranger-drive-ci-validation
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ranger-validation
-          path: /tmp/ranger-ci-validation
+          path: |
+            /tmp/ranger-ci-validation
+            /tmp/ranger-drive-ci-validation
       - name: Image reference and robot deployment bundle
         id: image
         env:

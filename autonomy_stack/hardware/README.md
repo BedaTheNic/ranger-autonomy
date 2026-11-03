@@ -35,6 +35,7 @@ the same so existing services can still be identified.
 | planner | planner_server, AdaptivePlanner | always |
 | controller | controller_server, AdaptiveController MPPI/DWB | always |
 | behaviors | behavior_server | always |
+| motion-guard | navigation_motion_guard, stopping-distance checks | always |
 | bt-navigator | bt_navigator, custom behavior tree | always |
 | navigation-lifecycle | Nav2 lifecycle manager | always |
 | telemetry | ranger_logging, passive telemetry | always |
@@ -194,7 +195,7 @@ The host needs Docker Engine and Buildx; it does not need a ROS installation.
 For a native amd64 local build:
 
 ```bash
-bash release.sh build ranger-autonomy:jazzy-r4
+bash release.sh build ranger-autonomy:jazzy-r5
 ```
 
 Only `linux/amd64` is built, matching the robot diagnostics. This amd64
@@ -204,18 +205,18 @@ Log in to the registry, using your GHCR token when prompted for a password:
 
 ```bash
 docker login ghcr.io -u BedaTheNic
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r4
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r5
 ```
 
 The default build and publication target is `linux/amd64`, the real robot's
 architecture. For another registry, change the image reference to, for example,
-`docker.io/USER/ranger-autonomy:jazzy-r4` or
-`registry.example.com/TEAM/ranger-autonomy:jazzy-r4`, and log in to that
+`docker.io/USER/ranger-autonomy:jazzy-r5` or
+`registry.example.com/TEAM/ranger-autonomy:jazzy-r5`, and log in to that
 registry. Additional tags or registries can follow the platform argument:
 
 ```bash
-bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r4 \
-  linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r4
+bash release.sh publish ghcr.io/bedathenic/ranger-autonomy:jazzy-r5 \
+  linux/amd64 docker.io/USER/ranger-autonomy:jazzy-r5
 ```
 
 The build context is the parent directory containing `autonomy_stack`,
@@ -225,7 +226,7 @@ The build context is the parent directory containing `autonomy_stack`,
 
 The exported repository includes `.github/workflows/publish.yaml`. On GitHub,
 open Actions → Verify and publish Ranger autonomy → Run workflow, and enter
-`jazzy-r4` as the tag. Alternatively, push the Git tag `jazzy-r4`.
+`jazzy-r5` as the tag. Alternatively, push the Git tag `jazzy-r5`.
 
 The workflow first builds the amd64 image and runs the original C++/logger
 regressions and isolated adaptive planning/logging integration test. If they
@@ -306,11 +307,15 @@ to use it instead of the existing scans.
 
 ## Logs and checks
 
-### Limited initial drive test
+### Drive gateway
 
 `compose.drive.yaml`, `drive.sh`, and `drive_guard.py` use the existing Jazzy
 image. The script is mounted read-only; no build is needed on the robot.
 The separate `ranger-drive` project connects `/cmd_vel_nav` to `/cmd_vel`.
+Controller candidates pass through `/cmd_vel_candidate` and the separate
+`motion-guard` service before reaching `/cmd_vel_nav`. The guard uses
+`/scan_obstacles`, `/odom`, and `/local_costmap/costmap_raw` on the robot.
+The navigator uses `/is_retained_path_valid` for the new retained-route checks.
 It starts **disarmed**, publishes no velocities until armed, and does not
 restart automatically.
 
@@ -329,8 +334,14 @@ bash drive.sh arm
 `arm` must return `success: true`. Then send a **NEW Nav2 Goal** in RViz.
 Previously accepted goals do not enable the drive. **2D Goal Pose** remains
 a planning preview. For the initial trial, select a nearby goal in free space,
-with the arm stowed and the physical E-stop accessible. Speed is limited to
-0.05 m/s and 0.10 rad/s; scaling preserves command direction and curvature.
+with the arm stowed and the physical E-stop accessible. The gateway forwards
+accepted planar commands unchanged: the former
+0.05 m/s and 0.10 rad/s commissioning clamp and hard ceilings are removed.
+Legacy `DRIVE_MAX_LINEAR` and `DRIVE_MAX_ANGULAR` variables are ignored.
+Configured Nav2 velocity and acceleration limits remain; current profiles use
+0.2 m/s translational limits, with angular limits depending on the controller.
+The separate motion guard can reduce or stop commands based on stopping distance
+and fresh scan, costmap, and odometry data.
 There is no elapsed-time disarm: the gateway remains armed until manually
 disarmed or stopped by another check.
 
@@ -369,18 +380,22 @@ state, stale odometry, and missing steering feedback in the adaptive profile.
 
 ### Upgrade and Ackermann diagnostics
 
-`jazzy-r4` includes the current local planner/controller changes and matching
-configurations: shortest feasible routes, direct and shortened holonomic
-paths, diagonal DWB candidates, and Ackermann reference seeding and alignment
-during direction reversals. The `jazzy-r3-gui` RViz image remains compatible.
+`jazzy-r5` includes the latest local planner, tracking, wheel-control and
+logging changes: validated Hybrid smoothing, retained-path validation and
+repair, route clearance/alignment updates, and a separate stopping-distance
+motion guard. The drive gateway no longer imposes a maximum speed. Controller
+limits and obstacle-dependent braking remain. `jazzy-r3-gui` stays compatible.
 
-To upgrade an existing deployment to the new image, first refresh the helpers
-as described below. Then, while the robot is stationary:
+To upgrade an existing deployment, first refresh its helpers with
+`apply_update.sh FULL_COMMIT_SHA` as described below. This is required because
+`drive_guard.py` is mounted from the robot host: pulling a new image alone does
+not replace an older host script that still clamps speed. The helper refresh
+also adds the `motion-guard` service to Compose. Then, while stationary:
 
 ```bash
 bash drive.sh disarm
-cp -p .env ".env.before-r4.$(date +%Y%m%d_%H%M%S)"
-sed -i 's|^AUTONOMY_IMAGE=.*|AUTONOMY_IMAGE=ghcr.io/bedathenic/ranger-autonomy:jazzy-r4|' .env
+cp -p .env ".env.before-r5.$(date +%Y%m%d_%H%M%S)"
+sed -i 's|^AUTONOMY_IMAGE=.*|AUTONOMY_IMAGE=ghcr.io/bedathenic/ranger-autonomy:jazzy-r5|' .env
 bash robot.sh pull
 bash robot.sh external
 bash drive.sh up
@@ -419,7 +434,7 @@ On the configured Mini V3, the driver selects the base mode from `Twist`:
 The driver compares `linear.y` to zero without a tolerance: even a tiny
 nonzero value selects parallel mode. For example,
 `vx=0.05 m/s, vy=0, wz=0.025 rad/s` describes an Ackermann arc with a 2 m
-radius, within the gateway limits. This describes the driver's mode selection.
+radius. The gateway preserves this command unchanged. This describes the driver's mode selection.
 The MPPI/Ackermann Nav2 profile additionally requires verified feedback from
 all four steering wheels.
 
@@ -546,8 +561,8 @@ safety. Maps and logs remain after shutdown. For a new release, change the
 image tag in `.env`, then repeat `pull` and the selected startup mode.
 
 The amd64 build, startup, planning, and structured logging have been validated
-locally. The `jazzy-r4` image is published in GHCR, with anonymous access and
-the release archive verified. The initial physical holonomic motion test was
+locally. The `jazzy-r4` image was verified in GHCR. The new `jazzy-r5` release
+uses the same tested build/publish workflow. The initial physical holonomic motion test was
 reported successful. Full physical adaptive/Ackermann navigation, wheel
 feedback mapping, and physical limits still require validation on the robot.
 

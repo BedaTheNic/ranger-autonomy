@@ -5,4 +5,5 @@
   <class type="ranger_nav_plugins::ClearanceLattice" base_class_type="nav2_core::GlobalPlanner">
     <description>Smac omni Lattice with swept-footprint diagonal connections and translation shortcuts.</description>
   </class>
+  <class type="ranger_nav_plugins::ValidatedHybrid" base_class_type="nav2_core::GlobalPlanner"/>
 </library>

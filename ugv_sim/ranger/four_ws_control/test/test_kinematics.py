@@ -1,9 +1,10 @@
 import math
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from swerve_kinematics import inverse_kinematics
+from swerve_kinematics import inverse_kinematics, STEERING_LIMIT
 
 
 class KinematicsTest(unittest.TestCase):
@@ -37,6 +38,26 @@ class KinematicsTest(unittest.TestCase):
         for radius in (0, -1, math.nan):
             with self.assertRaises(ValueError):
                 inverse_kinematics(.2, 0, 0, .46, .412, radius, 10)
+
+    def test_equivalent_wheel_vectors_at_joint_stops(self):
+        model = Path(__file__).resolve().parents[2] / 'ranger_mini/urdf/ranger_mini_gazebo.xacro'
+        robot = ET.parse(model)
+        previous = [-STEERING_LIMIT, STEERING_LIMIT, -1.56, 1.56]
+        for name in ('fl', 'fr', 'rl', 'rr'):
+            limit = robot.find(f"./joint[@name='{name}_steering_wheel']/limit")
+            self.assertEqual((float(limit.get('lower')), float(limit.get('upper'))),
+                             (-STEERING_LIMIT, STEERING_LIMIT))
+        for degrees in range(-180, 181):
+            vx = .2 * math.cos(math.radians(degrees))
+            vy = .2 * math.sin(math.radians(degrees))
+            angles, speeds = inverse_kinematics(vx, vy, 0, .46, .412, .08, 10, previous)
+            for a, speed, measured in zip(angles, speeds, previous):
+                self.assertLessEqual(abs(a), STEERING_LIMIT)
+                self.assertAlmostEqual(.08 * speed * math.cos(a), vx)
+                self.assertAlmostEqual(.08 * speed * math.sin(a), vy)
+                for other in (a - math.pi, a + math.pi):
+                    if abs(other) <= STEERING_LIMIT:
+                        self.assertLessEqual(abs(a - measured), abs(other - measured) + 1e-12)
 
 
 if __name__ == '__main__':

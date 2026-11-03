@@ -39,7 +39,22 @@ inline Edge edge(const std::vector<Pose2> & path,size_t i,const MotionLimits & l
   e.radius=curvature>1e-6?1/curvature:INFINITY;
   // A fixed-heading crab translation can have infinite radius yet still
   // require lateral velocity. Allow rounding, not sustained sideways slip.
-  const double slip_tolerance = std::abs(da) < 1e-6 ? .025 : .16;
+  // Hybrid-A* quantizes chassis headings. A short constant-bin piece
+  // next to a translating turn is part of the arc, not a long crab leg.
+  auto adjacent_turn=[&](int step) {
+    size_t j=step>0?i+1:i;
+    for(double span=0;span<.25;) {
+      if((step>0 && j+1>=path.size()) || (step<0 && j==0)) {break;}
+      size_t k=step>0?j+1:j-1;
+      double ds=distance(path[k],path[j]);
+      if(ds<1e-5) {break;}  // an explicit pivot separates two legs
+      if(std::abs(wrap(path[k].a-path[j].a))>1e-6) {return true;}
+      span+=ds;j=k;
+    }
+    return false;
+  };
+  const bool quantized_arc=e.length<.15 && (adjacent_turn(-1) || adjacent_turn(1));
+  const double slip_tolerance = std::abs(da) < 1e-6 ? (quantized_arc ? .07 : .025) : .16;
   e.ackermann=slip<slip_tolerance && e.radius>=limits.radius-.02;
   return e;
 }

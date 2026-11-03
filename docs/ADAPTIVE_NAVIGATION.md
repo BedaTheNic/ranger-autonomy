@@ -9,6 +9,16 @@ Od 2026-11-02 holonomski planer i kontroler podržavaju izravne dijagonale,
 a odabir globalne rute daje prednost duljini. Detalji promjene i testiranje:
 [DIAGONAL_NAVIGATION.md](DIAGONAL_NAVIGATION.md).
 
+U aktualnoj simulaciji servis `/is_retained_path_valid` provjerava preostalu
+putanju istim obrisom kao planer. U zapisnik sprema vremensku oznaku odbijene
+putanje i prvu neprohodnu pozu. Hybrid-A* zadržava izvornu putanju dok se
+provjerava zaglađena kopija. Dugi pravci mogu dobiti kandidata s orijentacijom
+šasije u smjeru vožnje, uz provjeru obiju rotacija, potrebnog vremena i prostora.
+Čvor `navigation_motion_guard` provjerava konačnu naredbu nakon ograničenja i
+eventualnog zaglađivanja. Koristi lokalni costmap, starost skena i izmjerenu brzinu.
+Naredbe prije i poslije provjere vide se na `/cmd_vel_candidate` i `/cmd_vel`.
+[Upute za ručnu provjeru, snimljene vožnje i rezultati](validation/navigation-improvements-20261103/README.md).
+
 ## Pokretanje novog svijeta
 
 Zaustavi prethodnu simulaciju prije pokretanja druge na istoj domeni.
@@ -54,8 +64,10 @@ ciljeva. Za test SLAM-a može se pokrenuti isti `world` uz `simulation.sh slam`.
 1. Globalni planer generira dva kandidata kada je stvarno potreban novi plan.
    Oba koriste costmap i footprint robota. Ackermann kandidat procjenjuje se uz svoju
    orijentaciju i redoslijed promjena smjera, a Lattice kandidat uz dopuštenu
-   mješovitu/holonomsku izvedbu. Bira se kraći izvedivi kandidat; procjena
-   trajanja razrješava samo jednake duljine. U slobodnom prostoru holonomski
+   mješovitu/holonomsku izvedbu. Bira se kraći izvedivi kandidat. Kod numerički
+   jednakih duljina prednost ima veća dodatna rezerva oko cijele putanje,
+   mjerena u koracima od pola ćelije do šest ćelija. Ako je i rezerva jednaka,
+   odluku donosi procjena trajanja. U slobodnom prostoru holonomski
    kandidat povezuje početak i cilj ravnom linijom uz provjeru footprinta.
 2. Iz promjene položaja i orijentacije računa se zakrivljenost i potreban
    radijus `R = 1 / |kappa|`. Provjerava se i kut između tangente putanje i

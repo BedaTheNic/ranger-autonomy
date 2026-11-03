@@ -17,7 +17,8 @@ from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import PointCloud2, PointField, JointState
 from tf2_ros import StaticTransformBroadcaster
 from lifecycle_msgs.srv import GetState
-from nav2_msgs.action import ComputePathToPose
+from nav2_msgs.action import ComputePathToPose, FollowPath
+from nav2_msgs.srv import IsPathValid
 
 profile=sys.argv[1] if len(sys.argv)>1 else 'adaptive'
 external='--external' in sys.argv
@@ -45,19 +46,24 @@ joints=JointState();joints.name=['fl_steering_wheel','fr_steering_wheel','rl_ste
 lidar_tf=TransformStamped();lidar_tf.header.frame_id='ranger_base_link';lidar_tf.child_frame_id='livox_frame';lidar_tf.transform.translation.x=.288;lidar_tf.transform.translation.y=-.007;lidar_tf.transform.translation.z=.046;lidar_tf.transform.rotation.z=math.sin(math.pi/4);lidar_tf.transform.rotation.w=math.cos(math.pi/4);broadcaster.sendTransform(transforms+[lidar_tf])
 cloud.header.frame_id='livox_frame'
 received_scan=[]
+candidate_commands=[];guard_commands=[];publish_cloud=True
+from geometry_msgs.msg import Twist
+candidate_sub=node.create_subscription(Twist,'/cmd_vel_candidate',lambda msg:candidate_commands.append((time.monotonic(),msg)),10)
+guard_sub=node.create_subscription(Twist,'/cmd_vel_nav',lambda msg:guard_commands.append((time.monotonic(),msg)),10)
 from sensor_msgs.msg import LaserScan
 scan_sub=node.create_subscription(LaserScan,'/autonomy/scan',lambda msg:received_scan.append(msg.header.frame_id),qos_profile_sensor_data)
 def publish():
  stamp=node.get_clock().now().to_msg()
  grid.header.stamp=stamp;map_pub.publish(grid)
- cloud.header.stamp=stamp;cloud_pub.publish(cloud)
+ cloud.header.stamp=stamp
+ if publish_cloud:cloud_pub.publish(cloud)
  odom.header.stamp=stamp;odom_pub.publish(odom)
  joints.header.stamp=stamp;joint_pub.publish(joints)
 node.create_timer(.1,publish)
 processes=[]
 logdir=Path('/tmp/smoke-'+profile);logdir.mkdir(exist_ok=True)
 try:
- components=['scan-adapter','planner','controller','behaviors','bt-navigator','telemetry']
+ components=['scan-adapter','planner','controller','motion-guard','behaviors','bt-navigator','telemetry']
  if profile=='ackermann':components+=['velocity-smoother','command-guard']
  components+=['navigation-lifecycle']
  for component in ([] if external else components):
@@ -88,9 +94,34 @@ try:
  result=handle.get_result_async();rclpy.spin_until_future_complete(node,result,timeout_sec=15)
  response=result.result();assert response and response.status==4, response
  assert len(response.result.path.poses)>1
- deadline=time.monotonic()+7
+ validity=node.create_client(IsPathValid,'/is_retained_path_valid')
+ assert validity.wait_for_service(timeout_sec=5)
+ future=validity.call_async(IsPathValid.Request(path=response.result.path))
+ rclpy.spin_until_future_complete(node,future,timeout_sec=5)
+ assert future.done() and future.result().is_valid,'Retained path validation failed'
+ follow=ActionClient(node,FollowPath,'/follow_path');assert follow.wait_for_server(timeout_sec=5)
+ request=FollowPath.Goal();request.path=response.result.path;request.controller_id='FollowPath';request.goal_checker_id='goal_checker'
+ future=follow.send_goal_async(request);rclpy.spin_until_future_complete(node,future,timeout_sec=5)
+ follower=future.result();assert follower and follower.accepted
+ moving=lambda msg:math.hypot(msg.linear.x,msg.linear.y)>1e-5 or abs(msg.angular.z)>1e-5
+ deadline=time.monotonic()+8
+ while time.monotonic()<deadline:
+  rclpy.spin_once(node,timeout_sec=.05)
+  if any(moving(v) for _,v in candidate_commands) and any(moving(v) for _,v in guard_commands):break
+ assert any(moving(v) for _,v in candidate_commands),'Controller did not publish a motion candidate'
+ assert any(moving(v) for _,v in guard_commands),'Motion guard did not pass a clear-space command'
+ publishers=node.get_publishers_info_by_topic('/cmd_vel_nav')
+ assert any(p.node_name=='navigation_motion_guard' for p in publishers),publishers
+ assert not any(p.node_name=='controller_server' for p in publishers),'Controller bypassed motion guard'
+ publish_cloud=False;stopped_at=time.monotonic();deadline=stopped_at+2
+ while time.monotonic()<deadline:rclpy.spin_once(node,timeout_sec=.05)
+ assert guard_commands and guard_commands[-1][0]>stopped_at+.7 and not moving(guard_commands[-1][1]),'Stale scan must stop guarded output'
+ publish_cloud=True
+ future=follower.cancel_goal_async();rclpy.spin_until_future_complete(node,future,timeout_sec=5)
+ assert future.done() and future.result().goals_canceling,'FollowPath cancellation failed'
+ deadline=time.monotonic()+3
  while time.monotonic()<deadline:rclpy.spin_once(node,timeout_sec=.1)
- print('PASS',profile,': scan conversion, 4 Nav2 active states, custom BT load, planning action; poses=',len(response.result.path.poses),flush=True)
+ print('PASS',profile,': scan conversion, Nav2 activation, planning, retained-path validity, controller/guard wiring, stale-scan stop and cancellation; poses=',len(response.result.path.poses),flush=True)
 finally:
  from nav2_msgs.srv import ManageLifecycleNodes
  client=node.create_client(ManageLifecycleNodes,'/lifecycle_manager_navigation/manage_nodes')

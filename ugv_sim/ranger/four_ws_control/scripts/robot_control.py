@@ -82,7 +82,7 @@ class Commander(Node):
         if fresh and self.positions is not None and any(abs(v) > 1e-6 for v in self.command):
             angles, wheels = inverse_kinematics(
                 *self.command, self.wheelbase, self.steering_track,
-                self.wheel_radius, self.max_wheel_speed, self.targets)
+                self.wheel_radius, self.max_wheel_speed, self.positions)
             step = self.steering_rate * dt
             self.targets = [p + max(-step, min(step, a - p))
                             for p, a in zip(self.targets, angles)]

@@ -1,4 +1,4 @@
-"""Exercise the commissioning gateway against synthetic base/controller nodes only."""
+"""Exercise the navigation gateway against synthetic base/controller nodes only."""
 import json
 import math
 import time
@@ -41,7 +41,7 @@ client=base.create_client(SetBool,'/autonomy/drive_enable')
 odom=Odometry();odom.header.frame_id='odom';odom.child_frame_id='ranger_base_link';odom.pose.pose.orientation.w=1.
 system=SystemState();system.control_mode=SystemState.CONTROL_MODE_CAN
 actuators=ActuatorStateArray(states=[ActuatorState(id=i) for i in range(8)])
-command=Twist();command.linear.x=.2;command.angular.z=.2
+command=Twist();command.linear.x=.6;command.angular.z=.5
 goal=None;publish_commands=False;publish_odometry=True
 
 
@@ -91,8 +91,15 @@ try:
     spin(.6)
     assert outputs and all(abs(v.linear.x)<1e-9 and abs(v.angular.z)<1e-9 for _,v in outputs)
     goal=new_goal()
-    wait(lambda:outputs and abs(outputs[-1][1].linear.x-.05)<1e-6)
-    assert abs(outputs[-1][1].angular.z-.05)<1e-6,'Scaling must preserve curvature'
+    wait(lambda:outputs and abs(outputs[-1][1].linear.x-.6)<1e-6)
+    assert abs(outputs[-1][1].angular.z-.5)<1e-6,'Controller speeds must pass through unchanged'
+    assert status[-1]['gateway_speed_limited'] is False
+    command.linear.x=-.6;command.angular.z=-.5
+    wait(lambda:abs(outputs[-1][1].linear.x+.6)<1e-6)
+    assert abs(outputs[-1][1].angular.z+.5)<1e-6
+    command.linear.x=.3;command.linear.y=.4;command.angular.z=0.
+    wait(lambda:abs(outputs[-1][1].linear.y-.4)<1e-6)
+    assert abs(outputs[-1][1].linear.x-.3)<1e-6,'Diagonal translation must pass through unchanged'
     publish_commands=False
     last_command=time.monotonic()
     wait(lambda:status[-1]['reason']=='NAVIGATION_COMMAND_TIMEOUT',seconds=2)
@@ -111,6 +118,18 @@ try:
     assert arm().success,'A second /cmd_vel publisher must not block arming'
     foreign.destroy_publisher(foreign_pub);executor.remove_node(foreign);foreign.destroy_node()
     assert arm(False).success
+    controller.destroy_publisher(commands_pub)
+    motion_guard=rclpy.create_node('navigation_motion_guard');executor.add_node(motion_guard)
+    commands_pub=motion_guard.create_publisher(Twist,'/cmd_vel_nav',10)
+    wait(lambda:status[-1]['reason']=='READY_DISARMED')
+    assert arm().success
+    goal=new_goal()
+    wait(lambda:abs(outputs[-1][1].linear.y-.4)<1e-6)
+    assert arm(False).success
+    duplicate=controller.create_publisher(Twist,'/cmd_vel_nav',10)
+    wait(lambda:status[-1]['reason']=='DUPLICATE_NAVIGATION_PUBLISHER')
+    assert not arm().success,'Controller must not bypass an active motion guard'
+    controller.destroy_publisher(duplicate)
     wait(lambda:status[-1]['reason']=='READY_DISARMED')
     assert arm().success
     system.vehicle_state=SystemState.VEHICLE_STATE_ESTOP
@@ -124,10 +143,13 @@ try:
     wait(lambda:status[-1]['reason']=='MEASURED_STEERING_MISSING')
     response=arm();assert not response.success and response.message=='MEASURED_STEERING_MISSING'
     print(json.dumps(dict(passed=True,physical_robot=False,
-        checks=['disarmed startup','ignore pre-arm goal','speed cap preserves curvature',
+        checks=['disarmed startup','ignore pre-arm goal','forward/reverse/diagonal speeds pass through unchanged',
+                'legacy DRIVE_MAX_LINEAR/DRIVE_MAX_ANGULAR ignored',
+                'motion guard publisher accepted; duplicate controller bypass blocked',
                 'command timeout stops and disarms','rearm ignores old goal','other publishers allowed',
                 'no elapsed-time disarm (obsolete DRIVE_ARM_SECONDS ignored)',
                 'E-stop stops','stale odometry blocks','adaptive requires steering']),indent=2),flush=True)
 finally:
+    if 'motion_guard' in globals():motion_guard.destroy_node()
     base.destroy_node();controller.destroy_node();executor.shutdown()
     if rclpy.ok():rclpy.shutdown()

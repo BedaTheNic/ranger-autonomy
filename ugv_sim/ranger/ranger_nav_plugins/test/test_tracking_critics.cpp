@@ -44,3 +44,17 @@ TEST(SteeringContinuity, InitialAlignmentAndReverseLateralTravelRemainPossible)
   critic.reset();
   EXPECT_DOUBLE_EQ(critic.scoreTrajectory(t), 0.0);
 }
+
+TEST(SteeringContinuity, SidewaysCorrectionsStayOnTheSameLegalBranch)
+{
+  ranger_nav_plugins::SteeringContinuityCritic critic;
+  dwb_msgs::msg::Trajectory2D t;
+  t.velocity.x = .0002135; t.velocity.y = -.0602226;
+  critic.debrief(t.velocity);
+  t.velocity.x = -.0003847; t.velocity.y = -.1199994;
+  EXPECT_NEAR(critic.scoreTrajectory(t), .00675, .0001);
+  critic.debrief(t.velocity);
+  // Continuing beyond the physical stop requires the other branch.
+  t.velocity.x = std::cos(-2.2); t.velocity.y = std::sin(-2.2);
+  EXPECT_GT(critic.scoreTrajectory(t), 2.5);
+}

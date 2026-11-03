@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Low-speed navigation gateway. Starts disarmed; reports other /cmd_vel publishers."""
+"""Navigation gateway. Preserves controller speeds; starts disarmed."""
 import json
 import math
 import os
@@ -28,14 +28,9 @@ from std_srvs.srv import SetBool
 class DriveGuard(Node):
     def __init__(self):
         super().__init__('autonomy_drive_guard_'+uuid.uuid4().hex[:8])
-        self.max_linear=float(os.environ.get('DRIVE_MAX_LINEAR','0.05'))
-        self.max_angular=float(os.environ.get('DRIVE_MAX_ANGULAR','0.10'))
         self.command_timeout=float(os.environ.get('DRIVE_COMMAND_TIMEOUT','0.30'))
-        if not all(math.isfinite(v) and v>0 for v in
-                   (self.max_linear,self.max_angular,self.command_timeout)):
-            raise ValueError('Drive limits/timeouts must be positive and finite')
-        if self.max_linear>.10 or self.max_angular>.20:
-            raise ValueError('Commissioning caps: 0.10 m/s and 0.20 rad/s')
+        if not math.isfinite(self.command_timeout) or self.command_timeout<=0:
+            raise ValueError('Command timeout must be positive and finite')
         self.started=time.monotonic();self.last_graph=0;self.graph_ready_since=0
         self.armed=False;self.stopping=False;self.arm_stamp=0
         self.goal_key=None;self.command=None;self.command_received=0
@@ -132,13 +127,13 @@ class DriveGuard(Node):
             if not self.graph_ready_since:self.graph_ready_since=now
         else:self.graph_ready_since=0
         inputs=self.get_publishers_info_by_topic('/cmd_vel_nav')
-        allowed=('controller_server','behavior_server')
+        allowed=('controller_server','navigation_motion_guard','behavior_server')
         counts={name:sum(p.node_name==name and p.node_namespace=='/' for p in inputs) for name in allowed}
         if any(p.node_namespace!='/' or p.node_name not in allowed or p.topic_type!='geometry_msgs/msg/Twist' for p in inputs):
             self.input_source_issue='UNEXPECTED_NAVIGATION_PUBLISHER'
-        elif any(count>1 for count in counts.values()):
+        elif any(count>1 for count in counts.values()) or (counts['controller_server'] and counts['navigation_motion_guard']):
             self.input_source_issue='DUPLICATE_NAVIGATION_PUBLISHER'
-        else:self.input_source_issue=None if counts['controller_server']==1 else 'NAVIGATION_PUBLISHERS_NOT_DISCOVERED'
+        else:self.input_source_issue=None if counts['controller_server']+counts['navigation_motion_guard']==1 else 'NAVIGATION_PUBLISHERS_NOT_DISCOVERED'
         if self.state_client.service_is_ready() and (self.state_future is None or self.state_future.done()):
             self.state_future=self.state_client.call_async(GetState.Request())
             self.state_future.add_done_callback(self.on_state)
@@ -197,7 +192,8 @@ class DriveGuard(Node):
         now=time.monotonic()
         if reason==self.last_reason and now-self.last_status<1:return
         data=dict(armed=self.armed,reason=reason,controller=self.plugin,
-                  foreign_publishers=self.foreign_publishers,max_linear=self.max_linear,max_angular=self.max_angular)
+                  foreign_publishers=self.foreign_publishers,speed_policy='controller_limits',
+                  gateway_speed_limited=False)
         self.status_pub.publish(String(data=json.dumps(data)))
         if reason!=self.last_reason:self.get_logger().info(json.dumps(data))
         self.last_reason=reason;self.last_status=now
@@ -213,9 +209,7 @@ class DriveGuard(Node):
         output=Twist()
         if self.goal_key is not None and self.command is not None:
             v=self.command
-            scale=min(1.,self.max_linear/max(math.hypot(v.linear.x,v.linear.y),1e-12),
-                      self.max_angular/max(abs(v.angular.z),1e-12))
-            output.linear.x=v.linear.x*scale;output.linear.y=v.linear.y*scale;output.angular.z=v.angular.z*scale
+            output.linear.x=v.linear.x;output.linear.y=v.linear.y;output.angular.z=v.angular.z
         self.output.publish(output)
         self.publish_status('DRIVING' if self.command is not None else 'ARMED_WAITING_FOR_NEW_GOAL')
 
