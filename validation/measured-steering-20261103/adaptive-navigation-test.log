@@ -1,0 +1,4 @@
+controller-1            | [controller_server-1] [INFO] [1793714064.105372798] [controller_server]: MPPI with feasible Ackermann samples and path direction configured
+planner-1               | [planner_server-1] [INFO] [1793714065.512864385] [planner_server]: Route length decision: {"selected":"mixed_route","ackermann_eta":3.08333,"mixed_eta":3.08333,"objective":"shortest_feasible","ackermann_length":0.5,"holonomic_length":0.5,"aligned_legs":0,"hybrid_variant":"smoothed","ack_clearance_bands":12,"holo_clearance_bands":12}
+controller-1            | [controller_server-1] [INFO] [1793714065.522141043] [controller_server]: Driving mode: ACKERMANN
+fixture-1               | PASS adaptive : scan conversion, Nav2 activation, planning, retained-path validity, controller/guard wiring, stale-scan stop and cancellation; poses= 14

@@ -23,10 +23,12 @@ case "$action" in
     "${compose[@]}" "${profiles[@]}" up -d --remove-orphans
     ;;
   check) "${compose[@]}" --profile tools run --rm --no-deps --name "ranger_hero_preflight_$$" preflight ;;
+  steering-check) "${compose[@]}" exec -T steering-feedback /opt/autonomy/entrypoint.sh \
+      python3 /opt/autonomy/hardware/steering_feedback.py check ;;
   down) "${compose[@]}" --profile '*' down ;;
   status) "${compose[@]}" --profile '*' ps ;;
   logs) shift; "${compose[@]}" --profile '*' logs --tail=100 "$@" ;;
   ros) shift; service="${1:?Specify service, then ROS command}"; shift
     "${compose[@]}" exec "$service" /opt/autonomy/entrypoint.sh "$@" ;;
-  *) echo 'Usage: bash robot.sh {pull|mapping|localization|external|check|down|status|logs [service]|ros service command...}' >&2; exit 2 ;;
+  *) echo 'Usage: bash robot.sh {pull|mapping|localization|external|check|steering-check|down|status|logs [service]|ros service command...}' >&2; exit 2 ;;
 esac

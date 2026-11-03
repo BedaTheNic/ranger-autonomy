@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='ranger-update-test-') as tmp:
     (deployment/'README.md').write_text('Retired hardware documentation')
     shutil.copyfile(hardware/'apply_update.sh',deployment/'apply_update.sh')
     files=['compose.yaml','compose.gui.yaml','compose.drive.yaml','drive_guard.py','robot.sh','viewer.sh',
-           'drive.sh','inspect_drive.py','ackermann_diagnostics.py','ackermann_check.sh']
+           'drive.sh','inspect_drive.py','ackermann_diagnostics.py','ackermann_check.sh','steering_feedback.py']
     for name in files:shutil.copyfile(hardware/name,payload/name)
     configurations=[('compose.yaml','planner'),('compose.gui.yaml','rviz-web'),('compose.drive.yaml','drive-guard')]
     configs=[];containers=[];before={}

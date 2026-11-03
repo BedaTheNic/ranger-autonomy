@@ -23,6 +23,7 @@ from std_srvs.srv import Trigger
 
 profile=sys.argv[1] if len(sys.argv)>1 else 'adaptive'
 external='--external' in sys.argv
+can_steering='--can-steering' in sys.argv
 os.environ.update(HARDWARE_MODE='true', USE_SIM_TIME='false', NAV_PROFILE=profile, ROS_DOMAIN_ID='211', OBSTACLE_SCAN_TOPIC='/autonomy/scan', RANGER_LOG_ROOT='/tmp/image-logs-'+profile, RANGER_LOG_MAX_BYTES='65536')
 rclpy.init()
 node=rclpy.create_node('isolated_image_fixture')
@@ -30,7 +31,8 @@ latched=QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL)
 map_pub=node.create_publisher(OccupancyGrid,'/map',latched)
 odom_pub=node.create_publisher(Odometry,'/odom',10)
 cloud_pub=node.create_publisher(PointCloud2,'/livox/lidar',10)
-joint_pub=node.create_publisher(JointState,'/joint_states',10)
+joint_pub=None if can_steering else node.create_publisher(JointState,'/joint_states',10)
+can_sender=None
 transforms=[]
 for parent,child in [('map','odom'),('odom','ranger_base_link')]:
  t=TransformStamped();t.header.frame_id=parent;t.child_frame_id=child;t.transform.rotation.w=1.;t.header.stamp=node.get_clock().now().to_msg();transforms.append(t)
@@ -59,11 +61,24 @@ def publish():
  cloud.header.stamp=stamp
  if publish_cloud:cloud_pub.publish(cloud)
  odom.header.stamp=stamp;odom_pub.publish(odom)
- joints.header.stamp=stamp;joint_pub.publish(joints)
+ if can_sender is not None:
+  # A measured straight wheel frame exercises the same transport, decoding and
+  # reliable ROS subscription as hardware. Synthetic odometry stays stationary.
+  can_sender.send(struct.pack('=IB3x8s',0x271,8,b'\0'*8))
+ else:
+  joints.header.stamp=stamp;joint_pub.publish(joints)
 node.create_timer(.1,publish)
 processes=[]
 logdir=Path('/tmp/smoke-'+profile);logdir.mkdir(exist_ok=True)
 try:
+ if can_steering:
+  from virtual_can import create
+  can_sender=create()
+  env=dict(os.environ,STEERING_CAN_INTERFACE='vcan_nav',STEERING_FEEDBACK_TOPIC='/ranger/steering_joint_states')
+  stream=(logdir/'steering-feedback.log').open('w')
+  p=subprocess.Popen([sys.executable,str(Path(__file__).resolve().parents[1]/'steering_feedback.py')],
+                     env=env,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
+  processes.append(p)
  components=['scan-adapter','planner','controller','motion-guard','behaviors','bt-navigator','telemetry']
  if profile=='ackermann':components+=['velocity-smoother','command-guard']
  components+=['navigation-lifecycle']

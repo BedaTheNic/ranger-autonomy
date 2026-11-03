@@ -121,8 +121,22 @@ steering_feedback:
   driver_source_sha256_observed: 4e0ed517c8ba29cd0c40e3e0568d3eeffefa53747b3c6a208c71266675fcdf6d
   source_repeats_angle5_and_actuator0: true
   source_matches_running_binary_verified: false
-  raw_can_motor_angle_frame_verified: false
-  independent_measured_wheel_angles_verified: false
+  raw_can_motor_angle_frame_verified: true
+  independent_measured_wheel_angles_verified: true
+  latest_capture: ackermann_report_20261103_143121_WpXuxO.tar.gz
+  latest_capture_seconds: 20
+  raw_can_angle_frames: 952
+  raw_can_units: signed_big_endian_int16_times_0_001_rad
+  corrected_actuator_topic_rate_hz: 49.81
+  corrected_actuator_topic_matches_can: true
+  physical_motor_order: {front_right: 5, rear_right: 6, rear_left: 7, front_left: 8}
+  physical_motor_order_source: https://cdn.shopify.com/s/files/1/0551/0630/6141/files/RANGER_MINI_3.0_USER_MANUAL_56669f58-ac26-4984-8aed-4ab40f7b6c74.pdf?v=1792566920
+  adapter_topic: /ranger/steering_joint_states
+  adapter_source: can0_receive_only_0x271
+  adapter_names: [fl_steering_wheel, fr_steering_wheel, rl_steering_wheel, rr_steering_wheel]
+  adapter_motor_order: [8, 5, 7, 6]
+  adapter_signs: [-1, -1, -1, -1]
+  adapter_physical_direction_test_completed: false
 ackermann_diagnostics:
   command_interface: geometry_msgs/msg/Twist
   require_exact_zero_lateral_for_ackermann: true

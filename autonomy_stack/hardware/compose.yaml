@@ -9,7 +9,7 @@ x-runtime: &runtime
   restart: unless-stopped
   stop_signal: SIGINT
   stop_grace_period: 25s
-  environment:
+  environment: &runtime-environment
     ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-9}
     ROS_LOCALHOST_ONLY: "0"
     ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
@@ -21,7 +21,9 @@ x-runtime: &runtime
     LOCALIZATION_MODE: ${LOCALIZATION_MODE:-mapping}
     MAP_FILE: ${MAP_FILE:-/maps/map.yaml}
     NAV_PROFILE: ${NAV_PROFILE:-adaptive}
-    STEERING_FEEDBACK_TOPIC: ${STEERING_FEEDBACK_TOPIC:-/joint_states}
+    STEERING_FEEDBACK_TOPIC: ${STEERING_FEEDBACK_TOPIC:-/ranger/steering_joint_states}
+    STEERING_CAN_INTERFACE: ${STEERING_CAN_INTERFACE:-can0}
+    STEERING_FEEDBACK_SIGNS: ${STEERING_FEEDBACK_SIGNS:--1,-1,-1,-1}
     OBSTACLE_SCAN_TOPIC: ${OBSTACLE_SCAN_TOPIC:-/scan_obstacles}
     LOCALIZATION_SCAN_TOPIC: ${LOCALIZATION_SCAN_TOPIC:-/scan}
     ADAPTER_SCAN_TOPIC: ${ADAPTER_SCAN_TOPIC:-/autonomy/scan}
@@ -40,6 +42,18 @@ x-runtime: &runtime
       max-file: "3"
 
 services:
+  steering-feedback:
+    container_name: ranger_hero_steering-feedback
+    <<: *runtime
+    # Receive-only SocketCAN, sharing the existing host CAN interface. No device
+    # passthrough, privileged mode, CAN setup or additional ROS driver is needed.
+    command: [python3, /opt/autonomy/hardware/steering_feedback.py]
+    environment:
+      <<: *runtime-environment
+      RANGER_LOG_SERVICE: steering-feedback
+    volumes:
+      - ./steering_feedback.py:/opt/autonomy/hardware/steering_feedback.py:ro
+      - ./logs:/logs
   scan-adapter:
     container_name: ranger_hero_scan-adapter
     <<: *runtime

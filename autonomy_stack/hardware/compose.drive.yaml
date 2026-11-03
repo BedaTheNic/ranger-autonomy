@@ -15,7 +15,7 @@ services:
       RMW_IMPLEMENTATION: rmw_fastrtps_cpp
       FASTDDS_BUILTIN_TRANSPORTS: UDPv4
       HARDWARE_MODE: "true"
-      STEERING_FEEDBACK_TOPIC: ${STEERING_FEEDBACK_TOPIC:-/joint_states}
+      STEERING_FEEDBACK_TOPIC: ${STEERING_FEEDBACK_TOPIC:-/ranger/steering_joint_states}
       RANGER_LOG_ROOT: /logs
       RANGER_LOG_SERVICE: drive-guard
       RANGER_DEPLOYMENT_ID: drive-test

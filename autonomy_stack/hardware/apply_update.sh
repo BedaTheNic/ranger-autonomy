@@ -8,7 +8,7 @@ revision="${1:?Usage: bash apply_update.sh VERIFIED_COMMIT_SHA}"
 stage="$(mktemp -d "$hardware_dir/.update.XXXXXX")"
 trap 'rm -rf -- "$stage"' EXIT
 files=(compose.yaml compose.gui.yaml compose.drive.yaml drive_guard.py robot.sh viewer.sh drive.sh
-       inspect_drive.py ackermann_diagnostics.py ackermann_check.sh)
+       inspect_drive.py ackermann_diagnostics.py ackermann_check.sh steering_feedback.py)
 for file in "${files[@]}"; do
   curl -fsSL "https://raw.githubusercontent.com/BedaTheNic/ranger-autonomy/$revision/autonomy_stack/hardware/$file" -o "$stage/$file"
 done

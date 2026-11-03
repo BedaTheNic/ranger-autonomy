@@ -46,10 +46,19 @@ jobs:
         run: >-
           docker run --rm --network none ranger-autonomy:ci
           bash /opt/autonomy/hardware/tests/unit_tests.sh
+      - name: Measured steering adapter and adaptive arming on isolated virtual CAN
+        run: |
+          sudo modprobe vcan
+          docker run --rm --network none --cap-add NET_ADMIN \
+            -e ROS_DOMAIN_ID=211 -e FASTDDS_BUILTIN_TRANSPORTS=UDPv4 -e RANGER_LOG_ENABLED=0 \
+            -v "$PWD/autonomy_stack/hardware:/test:ro" ranger-autonomy:ci \
+            python3 /test/tests/steering_feedback_smoke.py
       - name: Navigation profiles, motion guard and logging across separate containers
         run: |
           for profile in adaptive holonomic ackermann; do
-            python3 autonomy_stack/hardware/tests/compose_smoke.py --image ranger-autonomy:ci --profile "$profile" --output "/tmp/ranger-ci-validation/$profile"
+            extra=()
+            if [[ "$profile" == adaptive ]]; then extra+=(--can-steering); fi
+            python3 autonomy_stack/hardware/tests/compose_smoke.py --image ranger-autonomy:ci --profile "$profile" "${extra[@]}" --output "/tmp/ranger-ci-validation/$profile"
           done
       - name: Drive gateway forwards configured speeds and retains stop checks
         run: python3 autonomy_stack/hardware/tests/drive_smoke.py --image ranger-autonomy:ci --output /tmp/ranger-drive-ci-validation

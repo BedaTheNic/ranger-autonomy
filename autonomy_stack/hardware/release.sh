@@ -56,7 +56,7 @@ case "$action" in
       "$hardware_dir/robot.sh" "$hardware_dir/inspect_drive.py" \
       "$hardware_dir/compose.gui.yaml" "$hardware_dir/viewer.sh" \
       "$hardware_dir/compose.drive.yaml" "$hardware_dir/drive.sh" \
-      "$hardware_dir/drive_guard.py" "$hardware_dir/apply_update.sh" \
+      "$hardware_dir/drive_guard.py" "$hardware_dir/apply_update.sh" "$hardware_dir/steering_feedback.py" \
       "$hardware_dir/ackermann_check.sh" "$hardware_dir/ackermann_diagnostics.py" "$stage/ranger-hardware/"
     # Robot preset only; registry credentials remain in the host's Docker login.
     cp -- "$hardware_dir/.env.example" "$stage/ranger-hardware/.env"
