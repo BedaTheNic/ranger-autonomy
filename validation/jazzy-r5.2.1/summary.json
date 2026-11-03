@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "image": "ranger-autonomy:jazzy-r5.2.1",
+  "physical_robot": false,
+  "footprint_m": {
+    "length": 0.738,
+    "width": 0.5
+  },
+  "costmap_padding_m": 0.0,
+  "planning_padding_m": 0.0,
+  "lattice_search_padding_m": 0.0,
+  "application_source_manifest_identical_to": "ranger-autonomy:jazzy-r5.2",
+  "local_profiles_verified": [
+    "adaptive",
+    "holonomic",
+    "ackermann"
+  ],
+  "unit_CAN_gateway_regressions": "Passed against identical application sources; see ../jazzy-r5.2/summary.json",
+  "readiness_fix": "Discover the real plan recorder before sending the one-shot planning goal; retain required global_plan logging assertion",
+  "previous_CI_run": 41654388644,
+  "previous_CI_failure": "Holonomic navigation passed; global_plan event absent during DDS startup discovery"
+}

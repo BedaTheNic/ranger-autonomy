@@ -6,7 +6,7 @@ on:
       tag:
         description: Image release tag
         required: true
-        default: jazzy-r5.2
+        default: jazzy-r5.2.1
   push:
     tags: ['jazzy-*']
   pull_request:

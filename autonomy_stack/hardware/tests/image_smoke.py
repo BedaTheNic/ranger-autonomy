@@ -124,6 +124,19 @@ try:
   assert actual==expected,(costmap,actual,expected)
  print('Verified both published 0.738 x 0.500 m physical footprints',flush=True)
  assert received_scan and received_scan[-1]=='ranger_base_link',received_scan
+ # Nav2 only publishes /plan when it has a matched subscriber. A fast
+ # holonomic startup can finish its one-shot plan before DDS discovers the
+ # recorder, even though all navigation nodes are active. Establish recorder
+ # discovery before planning; the host still requires a real global_plan log.
+ deadline=time.monotonic()+12;recorder_ready=False
+ while time.monotonic()<deadline:
+  rclpy.spin_once(node,timeout_sec=.05)
+  recorder_ready=any(s.node_name=='project_logger' and s.node_namespace=='/' and
+                     s.topic_type=='nav_msgs/msg/Path'
+                     for s in node.get_subscriptions_info_by_topic('/plan'))
+  if recorder_ready:break
+ assert recorder_ready,'Plan recorder must be discovered before the test sends a goal'
+ print('Verified /plan recorder discovery before planning',flush=True)
  action=ActionClient(node,ComputePathToPose,'/compute_path_to_pose')
  assert action.wait_for_server(timeout_sec=5)
  goal=ComputePathToPose.Goal();goal.use_start=True;goal.planner_id='GridBased'
