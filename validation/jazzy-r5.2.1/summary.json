@@ -18,5 +18,14 @@
   "unit_CAN_gateway_regressions": "Passed against identical application sources; see ../jazzy-r5.2/summary.json",
   "readiness_fix": "Discover the real plan recorder before sending the one-shot planning goal; retain required global_plan logging assertion",
   "previous_CI_run": 41654388644,
-  "previous_CI_failure": "Holonomic navigation passed; global_plan event absent during DDS startup discovery"
+  "previous_CI_failure": "Holonomic navigation passed; global_plan event absent during DDS startup discovery",
+  "github_verification_passed": true,
+  "github_workflow": "https://github.com/BedaTheNic/ranger-autonomy/actions/runs/41656889473",
+  "github_checks": [
+    "unit and logging regressions",
+    "measured CAN steering and adaptive arming",
+    "adaptive, holonomic and Ackermann profiles",
+    "published physical footprints and plan logging",
+    "drive gateway"
+  ]
 }
