@@ -1,28 +1,30 @@
-# Adaptivna navigacija — Ranger Mini V2, simulacija
+# Adaptive navigation — Ranger Mini V2 simulation
 
-Profil `adaptive` bira između Smac Hybrid-A* putanje i Smac State Lattice
-putanje. MPPI upravlja Ackermann dionicama, a DWB holonomskim dionicama.
-Postojeći profili `ackermann` i `holonomic` ostaju dostupni za usporedbu.
-Parametri vrijede za Mini V2 u ovoj simulaciji; nisu kalibracija većeg Rangera.
+The `adaptive` profile selects between Smac Hybrid-A* and Smac State
+Lattice paths. MPPI controls Ackermann segments, while DWB controls
+holonomic segments. The existing `ackermann` and `holonomic` profiles
+remain available for comparison. These parameters apply to the Mini V2
+simulation; they do not calibrate a larger Ranger.
 
-Od 2026-11-02 holonomski planer i kontroler podržavaju izravne dijagonale,
-a odabir globalne rute daje prednost duljini. Detalji promjene i testiranje:
-[DIAGONAL_NAVIGATION.md](DIAGONAL_NAVIGATION.md).
+Since 2026-11-02, the holonomic planner and controller support direct diagonal
+motion, and global route selection prioritizes length. Change details and
+validation: [DIAGONAL_NAVIGATION.md](DIAGONAL_NAVIGATION.md).
 
-U aktualnoj simulaciji servis `/is_retained_path_valid` provjerava preostalu
-putanju istim obrisom kao planer. U zapisnik sprema vremensku oznaku odbijene
-putanje i prvu neprohodnu pozu. Hybrid-A* zadržava izvornu putanju dok se
-provjerava zaglađena kopija. Dugi pravci mogu dobiti kandidata s orijentacijom
-šasije u smjeru vožnje, uz provjeru obiju rotacija, potrebnog vremena i prostora.
-Čvor `navigation_motion_guard` provjerava konačnu naredbu nakon ograničenja i
-eventualnog zaglađivanja. Koristi lokalni costmap, starost skena i izmjerenu brzinu.
-Naredbe prije i poslije provjere vide se na `/cmd_vel_candidate` i `/cmd_vel`.
-[Upute za ručnu provjeru, snimljene vožnje i rezultati](validation/navigation-improvements-20261103/README.md).
+In the current simulation, `/is_retained_path_valid` checks the remaining
+path using the same footprint as the planner. It logs the rejected path's
+timestamp and first blocked pose. Hybrid-A* retains the raw path while
+validating a smoothed copy. Long straight segments can receive a candidate
+whose chassis heading follows the direction of travel, with both rotations,
+required time, and clearance checked. The `navigation_motion_guard` node
+checks the final command after limits and any smoothing. It uses the local
+costmap, scan age, and measured velocity. Commands before and after this
+check appear on `/cmd_vel_candidate` and `/cmd_vel`.
+[Manual validation instructions, recorded drives, and results](validation/navigation-improvements-20261103/README.md).
 
-## Pokretanje novog svijeta
+## Starting a new world
 
-Zaustavi prethodnu simulaciju prije pokretanja druge na istoj domeni.
-Iz terminala:
+Stop the previous simulation before starting another in the same domain.
+In a terminal:
 
 ```bash
 cd /home/bedathenic/bedenic_ws/src/ranger_navigation_startup
@@ -33,113 +35,118 @@ bash simulation.sh navigate profile:=adaptive \
   gui:=true rviz:=true
 ```
 
-U drugom terminalu, nakon što AMCL postane aktivan:
+In another terminal, after AMCL becomes active:
 
 ```bash
 cd /home/bedathenic/bedenic_ws/src/ranger_navigation_startup
 bash simulation.sh initial_pose 0 0 0
 ```
 
-U RVizu koristi `Nav2 Goal`. Početni niz ciljeva je `(3, 0, 0°)`,
-`(4, 2.3, 0°)`, `(7, 3.65, 0°)`. Zadržana orijentacija 0° u uskom
-poprečnom hodniku traži bočnu vožnju. Duže ravne dionice dopuštaju Ackermann.
-Prikaz `Navigation modes` uključuje `HOLONOMIC_ROTATE` za rotaciju na mjestu
-i `HOLONOMIC_RECOVERY` za lokalni povratak na putanju. Označava Ackermann zeleno, holonomske dionice
-narančasto i ispisuje trenutačni način iznad robota.
+Use `Nav2 Goal` in RViz. The initial goal sequence is `(3, 0, 0°)`,
+`(4, 2.3, 0°)`, `(7, 3.65, 0°)`. Maintaining a 0° heading in the narrow
+cross-corridor requires lateral driving. Longer straight segments permit
+Ackermann motion. The `Navigation modes` display includes
+`HOLONOMIC_ROTATE` for rotation in place and `HOLONOMIC_RECOVERY` for a
+local return to the path. It marks Ackermann segments green and holonomic
+segments orange, and displays the current mode above the robot.
 
-Za prekid cilja:
+To cancel a goal:
 
 ```bash
 bash simulation.sh cancel
 ```
 
-`corridor_lab` ima tri duga hodnika, poprečne prolaze širine 1.20 m,
-glavni hodnik širine 1.30 m, prostorije i deset umetnutih prepreka/suženja.
-Karta je izvedena iz iste geometrije kao Gazebo svijet; nije rezultat SLAM
-snimanja. `generate_corridor_world.py` reproducira svijet, kartu i popis
-ciljeva. Za test SLAM-a može se pokrenuti isti `world` uz `simulation.sh slam`.
+`corridor_lab` contains three long corridors, 1.20 m cross-passages, a
+1.30 m main corridor, rooms, and ten inserted obstacles or constrictions.
+The map is generated from the same geometry as the Gazebo world rather than
+from a SLAM recording. `generate_corridor_world.py` reproduces the world,
+map, and goal list. To test SLAM, launch the same `world` with
+`simulation.sh slam`.
 
-## Kako se bira način vožnje
+## Driving-mode selection
 
-1. Globalni planer generira dva kandidata kada je stvarno potreban novi plan.
-   Oba koriste costmap i footprint robota. Ackermann kandidat procjenjuje se uz svoju
-   orijentaciju i redoslijed promjena smjera, a Lattice kandidat uz dopuštenu
-   mješovitu/holonomsku izvedbu. Bira se kraći izvedivi kandidat. Kod numerički
-   jednakih duljina prednost ima veća dodatna rezerva oko cijele putanje,
-   mjerena u koracima od pola ćelije do šest ćelija. Ako je i rezerva jednaka,
-   odluku donosi procjena trajanja. U slobodnom prostoru holonomski
-   kandidat povezuje početak i cilj ravnom linijom uz provjeru footprinta.
-2. Iz promjene položaja i orijentacije računa se zakrivljenost i potreban
-   radijus `R = 1 / |kappa|`. Provjerava se i kut između tangente putanje i
-   uzdužne osi šasije. Bočna dionica s konstantnom orijentacijom ima beskonačan
-   radijus, ali svejedno nije izvediva Ackermannom.
-3. Lokalni limit radijusa je 0,80 m, a globalni Hybrid-A* koristi 1,10 m
-   kako bi ostavio prostor za korekciju praćenja. Na pravcu sa stalnom
-   orijentacijom dopuštena razlika između smjera translacije i uzdužne osi
-   (naprijed ili natrag) iznosi 0,025 rad. Veća razlika zahtijeva bočnu vožnju.
-   Ackermann može promijeniti smjer naprijed/natrag na označenoj točki putanje.
-   Holonomski kontroler preuzima rotacije na mjestu.
-4. Procjena vremena uključuje duljinu, brzine naprijed/natrag/bočno, kutnu
-   brzinu, poravnanje šasije, promjene kuta kotača i trošak Ackermann promjene
-   smjera. Uspoređuje se mješovita izvedba s potpuno holonomskom izvedbom iste
-   preostale putanje. Referenca koja zahtijeva Ackermann orijentacije i
-   promjene smjera mora zadržati taj redoslijed; za nju se ne nudi bočno
-   praćenje samo XY crte. Kod praktično jednakog vremena (0.25 s) prednost ima
-   izvediva Ackermann dionica. To je kinematička procjena, ne jamstvo globalno
-   najkraćeg stvarnog vremena.
-5. Kontroler ponovno procjenjuje preostalu dionicu bez traženja novog globalnog
-   plana. Minimalno zadržavanje holonomskog načina je 2 s; Ackermann otoci
-   kraći od 0.65 m se spajaju s okolnim holonomskim dionicama. Već
-   započeta Ackermann dionica ne prekida se samo zato što joj preostala
-   duljina padne ispod tog praga.
+1. The global planner generates two candidates when a new plan is actually
+   needed. Both use the costmap and robot footprint. The Ackermann candidate
+   is evaluated with its headings and gear-change sequence; the Lattice
+   candidate is evaluated for permitted mixed/holonomic execution. The shorter
+   feasible candidate wins. For numerically equal lengths, preference goes to
+   greater additional clearance along the entire path, measured in half-cell
+   increments up to six cells. If clearance is also equal, estimated duration
+   breaks the tie. In free space, the holonomic candidate joins start and goal
+   with a straight line after checking the footprint.
+2. Position and heading changes determine curvature and required radius
+   `R = 1 / |kappa|`. The angle between the path tangent and chassis
+   longitudinal axis is also checked. A lateral segment with constant heading
+   has infinite radius but is still not Ackermann-feasible.
+3. The local radius limit is 0.80 m; global Hybrid-A* uses 1.10 m to leave room
+   for tracking corrections. On a constant-heading straight segment, the
+   permitted difference between translation direction and the chassis
+   longitudinal axis, forward or backward, is 0.025 rad. A larger difference
+   requires lateral motion. Ackermann may reverse at a marked path point.
+   The holonomic controller handles rotations in place.
+4. Duration estimates include length, forward/reverse/lateral speeds, angular
+   speed, chassis alignment, wheel-angle changes, and Ackermann reversal cost.
+   Mixed execution is compared with fully holonomic execution of the same
+   remaining path. A reference requiring Ackermann headings and gear changes
+   must retain that sequence; lateral tracking of only its XY line is not
+   offered. For practically equal duration estimates (0.25 s), a feasible
+   Ackermann segment wins. This is a kinematic estimate, not a guarantee of
+   globally shortest actual execution time.
+5. The controller reevaluates the remaining segment without requesting a new
+   global plan. Holonomic mode has a minimum dwell of 2 s. Ackermann islands
+   shorter than 0.65 m are merged into surrounding holonomic segments. An
+   Ackermann segment already being executed is not interrupted merely because
+   its remaining length drops below that threshold.
 
-Brzine korištene u procjeni: naprijed 0.20 m/s, Ackermann unatrag 0.15 m/s,
-holonomski 0.20 m/s, poravnanje 0.25 rad/s, zakretanje kotača 1 rad/s.
-Stvarna brzina ovisi o clearanceu, kontroleru i potrebnom poravnanju kotača.
+Speeds used by the estimate are 0.20 m/s forward, 0.15 m/s Ackermann reverse,
+0.20 m/s holonomic, 0.25 rad/s for alignment, and 1 rad/s for wheel steering.
+Actual speed depends on clearance, the controller, and required wheel
+alignment.
 
-Lattice skup gibanja usklađen je s lokalnim ograničenjem radijusa 0.80 m.
-Uklonjeni su izvorni lukovi radijusa 0.50–0.69 m. Trenutačni skup ima 160
-primitiva: 128 translacija (osam smjerova po orijentaciji) i 32 rotacije na mjestu. Holonomski kandidat stoga
-može izvesti oštar zavoj translacijom i zasebnim zakretom; Ackermann kandidat
-i dalje koristi glatke Hybrid-A* lukove radijusa najmanje 1.10 m.
+The Lattice motion set matches the local 0.80 m radius limit. Original arcs
+with radii of 0.50–0.69 m were removed. The current set has 160 primitives:
+128 translations (eight directions per heading) and 32 rotations in place.
+The holonomic candidate can therefore negotiate a sharp turn through
+translation and a separate rotation; the Ackermann candidate retains smooth
+Hybrid-A* arcs with radii of at least 1.10 m.
 
-## Zastoji i ponovno planiranje
+## Stalls and replanning
 
-Od 3. studenoga 2026. MPPI u svakom ciklusu uzima referentnu točku do 45 cm
-ispred projekcije robota na trenutačnu dionicu. Simulira niz brzina i lukova
-uz ograničenja brzine, ubrzanja i kočenja. Kako se približava kraju dionice,
-referentna brzina opada. Ako cijeli taj pokret ima slobodan obris, početna
-procjena za uzorkovanje kombinira 75 % te reference i 25 % prethodnog rješenja.
-MPPI ocjenjuje jedan skup od 1200 uzoraka po ciklusu. Kad referenca prolazi
-kroz prepreku, uzorkovanje kreće od prethodnog rješenja.
+Since 2026-11-03, each MPPI cycle takes a reference point up to 45 cm ahead of
+the robot's projection onto the current segment. It simulates a sequence of
+speeds and arcs subject to speed, acceleration, and braking limits. Reference
+speed decreases near the segment end. If the full motion has a clear
+footprint, the sampling seed combines 75% of that reference with 25% of the
+previous solution. MPPI scores one batch of 1,200 samples per cycle. If the
+reference crosses an obstacle, sampling starts from the previous solution.
 
-Pri promjeni smjera kontroler posebno provjerava slučaj u kojem je preostala
-samo završna točka dolazne dionice. Ako je robot prošao tu točku ili na
-preostaloj duljini više ne može postići zadan kut unutar tolerancije,
-adaptivni profil zakoči. Unutar 15 cm može se holonomski vratiti na točku
-i poravnati provjerenim zakretom prije nastavka iste putanje. Čisti
-Ackermann profil tada traži novi prilaz. Pomoć pri praćenju dopušta kretanje
-samo ako je referentna točka ispred robota u odabranom smjeru vožnje.
+At a reversal, the controller explicitly checks the case where only the
+incoming segment's endpoint remains. If the robot has passed that point or
+cannot achieve its requested heading within tolerance over the remaining
+distance, the adaptive profile brakes. Within 15 cm, it can return
+holonomically to the point and align through a checked rotation before
+continuing the same path. A pure Ackermann profile instead requests a new
+approach. Tracking assistance permits motion only when the reference point
+lies ahead in the selected driving direction.
 
-U zabilježenoj vožnji 3. studenoga prvi izbor bila je mješovita putanja
-duljine 7,55 m, s procjenom trajanja 49,46 s. Ackermann alternativa
-imala je 8,95 m i procjenu 48,07 s. Prednost je imala kraća ruta.
-Kad adaptivna Lattice pretraga može upotrijebiti prošireni obris, koristi
-još 5 cm izvan osnovne rezerve od 4 cm i čuva taj prostor pri skraćivanju
-obilaska oko prepreke.
+In a drive recorded on 2026-11-03, the initial selection was a 7.55 m mixed
+path with an estimated duration of 49.46 s. The Ackermann alternative was
+8.95 m with an estimate of 48.07 s. The shorter route won. When adaptive
+Lattice search can use the expanded footprint, it adds another 5 cm beyond
+the basic 4 cm reserve and preserves that clearance when shortening a detour
+around an obstacle.
 
-U Gazebu je izvorni kontroler prekinuo praćenje snimljene putanje od 100
-poza na prvoj promjeni smjera. Ažurirana verzija prošla je istu putanju za
-85,1 s bez sudara. U 95 % uzoraka odstupanje od plana bilo je unutar 3,9 cm.
-Zabilježena su dva lokalna poravnanja prije nastavka u Ackermann načinu.
-Tri samostalna Ackermann cilja završila su s jednim planom po cilju.
-Ponovljena vožnja do zadanog odredišta `(7.05, -1.11, 1.596 rad)` u
-adaptivnom profilu koristila je holonomsku putanju, s jednim globalnim
-planom i završnom pogreškom položaja 3,0 cm.
-[Mjerenja, snimljena putanja i rezultati provjere](validation/ackermann-continuity-20261103.json)
+In Gazebo, the original controller stopped following the recorded 100-pose
+path at its first reversal. The updated version completed that same path in
+85.1 s without collision. Tracking error was within 3.9 cm for 95% of samples.
+Two local alignments were recorded before resuming Ackermann mode. Three
+standalone Ackermann goals each finished with one plan. A repeated adaptive
+drive to `(7.05, -1.11, 1.596 rad)` used a holonomic path, with one global
+plan and a final position error of 3.0 cm.
+[Measurements, recorded path, and validation results](validation/ackermann-continuity-20261103.json)
 
-U novom terminalu možeš očitati zadnju globalnu odluku i zatim pratiti
-lokalne odluke dok traje vožnja u adaptivnom profilu.
+In a new terminal, inspect the latest global decision and then follow local
+decisions while the adaptive profile is driving:
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -148,145 +155,160 @@ ros2 topic echo /navigation_plan_decision std_msgs/msg/String --once --qos-durab
 ros2 topic echo /navigation_mode_decision std_msgs/msg/String
 ```
 
-MPPI može pri kraju dionice prije promjene smjera pronaći gotovo nultu
-brzinu. DWB uz novu prepreku može oscilirati između suprotnih naredbi.
-Dodana je pomoć pri praćenju zadržane putanje: nakon izostanka napredovanja
-provjerava se spora geometrijska naredba, cijeli footprint i središte robota
-uzduž predviđenog gibanja. Nepoznat ili zauzet prostor odbacuje se. DWB mjeri
-napredovanje po putanji, tako da njihanje naprijed/natrag ne glumi napredak.
-Pomoć sinkronizira stanje DWB kritika s naredbom koju robot stvarno dobije.
+Near a segment end before a reversal, MPPI can settle on almost zero speed.
+DWB may oscillate between opposing commands near a new obstacle. Retained-path
+tracking assistance was added: after a lack of progress, it checks a slow
+geometric command, the full footprint, and the robot center along the
+predicted motion. Unknown or occupied space is rejected. DWB measures progress
+along the path, so forward/backward rocking cannot count as progress.
+Assistance synchronizes DWB critic state with the command the robot actually
+receives.
 
-BT zadržava globalni plan dok je valjan. Nova prepreka koja presijeca plan
-opravdano uzrokuje novi plan; sama promjena načina vožnje to ne radi. Lokalni
-kontroler i dalje računa naredbe na 10 Hz i mora reagirati na promjene okoline.
-Kad nema sigurne naredbe, smije stati i pokrenuti oporavak. Prebacivanje
-između bočne vožnje, rotacije na mjestu i zakrivljene Ackermann vožnje može
-zahtijevati kočenje i poravnanje kotača; takav je kratki zastoj fizički potreban.
+The behavior tree retains the global plan while it remains valid. A new
+obstacle intersecting the plan justifies replanning; a driving-mode change
+alone does not. The local controller still computes commands at 10 Hz and
+must react to environmental changes. If no safe command exists, it may stop
+and invoke recovery. Switching between lateral motion, rotation in place,
+and curved Ackermann motion can require braking and wheel alignment; that
+short stop is physically necessary.
 
-## Rotacija na mjestu i provjera prolaznosti
+## Rotation in place and clearance checks
 
-Holonomski kontroler sada prati i orijentaciju referentne putanje. Prije
-zavoja provjerava željenu orijentaciju do 2 m unaprijed, tako da se poravna
-prije ulaska u prolaz u kojem više nema mjesta za zakret. Pogled unaprijed
-završava na sljedećoj planiranoj rotaciji na mjestu: njezina izlazna
-orijentacija ne primjenjuje se dok robot još prilazi toj točki. Zakret se izvodi
-samo ako provjera cijelog zakreta u koracima od 0.025 rad ne nalazi prepreku.
-Provjera se ponavlja tijekom manevra; novo opažena prepreka zaustavlja zakret.
-Robot najprije koči translaciju, zatim rotira bez bočne naredbe i nastavlja
-praćenje istog globalnog plana. Korekcija završava unutar 0.06 rad.
-Planirane rotacije bez pomaka središta obavezne su međutočke. DWB dobiva
-samo dionicu do sljedeće takve točke, prilazi joj do 2.5 cm i završava zakret
-prije nastavka. Projekcija ne smije preskočiti zakret na preklapajućem
-odlaznom/povratnom XY dijelu putanje. To vrijedi i u samostalnom holonomskom
-i u adaptivnom profilu.
-Tijekom započetog zakreta vrijedi prag zadržavanja 4 cm, usklađen s
-tolerancijom prolaska kroz međutočku. Time mali pomaci procijenjene poze ne
-prebacuju kotače stalno između translacije i rotacije. Veće odstupanje
-prekida zakret i ponovno poravnava položaj.
-Obavezni zakret koristi završnu pozu te dionice, čak i kada je ona više od
-3 m od početka putanje. Ne uspoređuje prolaznost s već prijeđenim hodnikom
-i ne čeka pauzu namijenjenu opcionalnim promjenama orijentacije. I dalje
-provjerava sav prostor koji footprint zauzima tijekom tog zakreta.
+The holonomic controller also follows the reference path's heading. Before
+a turn, it checks the desired heading up to 2 m ahead so the chassis aligns
+before entering a passage that has no room to rotate. Lookahead ends at the
+next planned in-place rotation: its outgoing heading is not applied while
+the robot is still approaching that point. Rotation proceeds only if a full
+sweep checked in 0.025 rad increments finds no obstacle. This check repeats
+during the maneuver; a newly observed obstacle stops the rotation. The robot
+first brakes translation, rotates without a lateral command, and then resumes
+the same global plan. Correction ends within 0.06 rad.
 
-Ako trenutačna orijentacija blokira footprint unutar sljedećih 0.6 m,
-provjera drugih orijentacija pokreće se prije zastoja. Provjerava se do
-0.8 m referentne putanje. Ista provjera radi i kada DWB ne napreduje ili
-ne nalazi dopuštenu brzinu. Uspoređuju se drugi
-položaji šasije: tangenta putanje, suprotna tangenta i zakreti za ±90°.
-Promjena mora otvoriti barem 0.20 m dodatne prolazne putanje; ne vraća se
-odmah na referentnu orijentaciju koja bi opet zatvorila taj prolaz.
-`PoseProgressChecker` priznaje i napredovanje kutom, uz pomak središta.
-Pri oštrom kutu projekcija na referencu ne preskače vrh zavoja: holonomski
-kontroler prilazi vrhu do 5 cm prije promjene smjera. Prijelaz iz holonomskog
-u Ackermann način traži odstupanje od putanje najviše 6 cm. Time se izbjegava
-ranije izmjereno rezanje kuta za 13 cm i neprikladan Ackermann izlaz iz zavoja.
-Kod MPPI pogreške zbog neprohodnih uzoraka prvo se provjerava spora Ackermann
-korekcija; adaptivni profil zatim može pokušati kratki holonomski povratak na
-referencu. Taj pokušaj ne preskače promjenu smjera naprijed/natrag.
-Povratne informacije kotača ostaju valjane i u pivot/crab položaju. Tada
-nepostojanje konačnog Ackermann radijusa ne smije proizvesti lažnu poruku
-`Missing or stale steering joint feedback`; stvarni nedostatak ili zastarjelost
-`joint_states` i dalje zaustavlja Ackermann kontroler.
+Planned rotations with no center displacement are mandatory waypoints. DWB
+receives only the segment up to the next such point, approaches within 2.5 cm,
+and completes the rotation before continuing. Projection must not skip a
+rotation on overlapping outgoing/return XY sections. This applies to both
+standalone holonomic and adaptive profiles.
 
-Globalni planer dodatno provjerava cijeli footprint cilja te interpolirane
-poze oba kandidata nakon izvornog planiranja/zaglađivanja. Ne šalje kontroleru
-putanju koja već tada pada na provjeri kolizije. Obje costmape koriste footprint s paddingom 0.02 m. Planer interno dodaje
-0.04 m rezerve praćenja pri provjeri kandidata i cilja. Provjera zadržanog
-plana koristi izvršni footprint, pa sama potrošnja te rezerve ne pokreće novi
-plan dok je putanja i dalje prohodna za robot.
-Lattice pretraga koristi još 0.025 m rezerve za diskretizaciju. Ako taj
-dodatak blokira diskretiziranu početnu ili završnu pozu, pretraga zadržava
-obaveznu rezervu praćenja bez dodatka za diskretizaciju. Ti se dodaci ne
-upisuju u zajednički footprint costmape. Time pretraga dobiva
-rezervu za provjeru interpolirane putanje, umjesto ponovnog slanja istog
-kandidata koji padne na završnoj provjeri.
-Prag za detaljnu provjeru Lattice footprinta računa se iz opisane kružnice
-proširenog footprinta, uz dijagonalu ćelije. U slobodnijem prostoru ostaje
-gradijent troška središnje ćelije, koji daje prednost sredini hodnika.
-Stalno korištenje maksimuma troška rubova izjednačavalo je prohodne položaje
-u uskom hodniku i u ponovljenom testu odabralo putanju preblizu zidu.
-Cilj `(13.7986, 5.83077, 0)` uz prepreku u `corridor_lab` nema tu rezervu.
-Za probu završnog prolaza koristi `(13.8, 6.0, 0)`; planer ne premješta
-korisnikov cilj automatski.
-Adaptivni profil koristi završnu XY toleranciju 0.06 m, usklađenu u goal
-checkeru i DWB-u. Prethodnih 0.15 m dopuštalo je zaustavljanje prije cilja
-uz prepreku, pa početna poza sljedećeg plana više nije imala rezervu
-praćenja. Tolerancija se odnosi na lokaliziranu pozu u karti; odstupanje od
-stvarne Gazebo poze zasebno se mjeri u testu.
-Adaptivna provjera dolaska ima `stateful: false`: XY položaj i završni kut
-moraju istodobno biti unutar tolerancije. Na posljednjih najviše 0.30 m
-jednosmjerne putanje, unutar 0.18 m od cilja, završni prilaz prelazi u
-holonomski način. Prvo se korigira položaj, zatim zakret uz provjeru cijelog
-footprinta. Time Ackermann luk radi poravnanja ne odnosi robot od već
-dosegnutog položaja. Taj prijelaz ne preskače planirani pivot, promjenu
-smjera ni preostali dio petlje koji samo prolazi blizu cilja.
+An ongoing rotation uses a 4 cm hold threshold, matching the waypoint passage
+tolerance. Small estimated-pose changes therefore do not repeatedly switch
+the wheels between translation and rotation. Larger displacement interrupts
+the rotation and realigns position. A mandatory rotation uses the segment's
+final pose even when it lies more than 3 m from the path start. It does not
+compare clearance with a corridor already passed or wait for the pause used
+for optional heading changes. It still checks all space swept by the footprint.
 
-Adaptivni Lattice planer također provjerava završni prilaz točnoj zadanoj
-pozi. Ako zaokruživanje položaja ili kuta na lattice mrežu zatvori cilj,
-traži prohodnu međupozu unutar `GridBased.goal_connection_distance` (0.25 m).
-Tamo može zakrenuti šasiju, a zatim translacijom s konstantnim kutom doći do
-izvornog cilja. Cijeli zakret i spoj provjeravaju se s rezervom planiranja;
-zauzet cilj i dalje se odbija. To nije tolerancija koja premješta cilj:
-zadnja poza plana zadržava zadane koordinate i orijentaciju.
+If the current heading blocks the footprint within the next 0.6 m, alternative
+headings are checked before a stall. Up to 0.8 m of the reference path is
+examined. The same check runs when DWB makes no progress or finds no legal
+velocity. Candidate chassis headings are the path tangent, opposite tangent,
+and ±90° rotations. A change must open at least another 0.20 m of traversable
+path; the controller does not immediately return to the reference heading
+that would close the passage again. `PoseProgressChecker` recognizes angular
+progress as well as center displacement.
 
-Označavanje novih prepreka iz LiDAR-a ograničeno je na 3 m, a brisanje
-raytracingom na 3.5 m. U dugom testu opažene su pomaknute ćelije dalekih
-zidova, koje su zatvarale inače prohodan cilj. Statička karta i dalje pokriva
-cijeli svijet; ograničenje se odnosi samo na costmap opažanja, ne na SLAM ili
-AMCL doseg senzora. BT timeout povećan je s 200 ms na 3000 ms kako dvije
-planerske pretrage ne bi izazvale prerani timeout servisnog poziva ili otkaza.
+At a sharp corner, reference projection cannot skip the vertex: the holonomic
+controller approaches within 5 cm before changing direction. Switching from
+holonomic to Ackermann mode requires tracking error no greater than 6 cm.
+This avoids the previously measured 13 cm corner cut and an unsuitable
+Ackermann exit from the corner. On an MPPI error caused by blocked samples,
+a slow Ackermann correction is checked first; the adaptive profile can then
+attempt a short holonomic return to the reference. This attempt does not skip
+a forward/reverse transition.
 
-Za snimanje dugog testa, nakon inicijalizacije svježe simulacije hodnika u
-domeni 88:
+Wheel feedback remains valid in pivot/crab positions. The absence of a finite
+Ackermann radius in those positions must not produce a false
+`Missing or stale steering joint feedback` error. Actual missing or stale
+`joint_states` still stops the Ackermann controller.
+
+The global planner additionally checks the full goal footprint and interpolated
+poses of both candidates after native planning/smoothing. It does not send
+the controller a path that already fails collision checks. Both costmaps use
+a footprint with 0.02 m padding. The planner internally adds a 0.04 m tracking
+reserve when checking candidates and the goal. Retained-plan validation uses
+the execution footprint, so using that reserve alone does not trigger a new
+plan while the path remains traversable by the robot.
+
+Lattice search uses another 0.025 m discretization reserve. If this addition
+blocks the discretized start or goal pose, search retains the mandatory
+tracking reserve without the extra discretization padding. These additions
+do not modify the shared costmap footprint. They give search room for
+interpolated-path validation instead of repeatedly returning a candidate
+that fails final validation.
+
+The threshold for detailed Lattice footprint checks is calculated from the
+expanded footprint's circumscribed circle, including a cell diagonal. In
+more open space, the center-cell cost gradient remains active and favors
+the corridor center. Always using the maximum boundary cost flattened
+traversable positions in a narrow corridor and, in a repeated test, selected
+a path too close to the wall.
+
+The goal `(13.7986, 5.83077, 0)` beside an obstacle in `corridor_lab` lacks
+that reserve. Use `(13.8, 6.0, 0)` for the final-passage test; the planner
+does not automatically relocate the user's goal.
+
+The adaptive profile uses a final XY tolerance of 0.06 m, aligned between
+the goal checker and DWB. The former 0.15 m tolerance allowed stopping before
+a goal near an obstacle, leaving the next plan's start without tracking
+clearance. This tolerance applies to the localized map pose; deviation from
+the actual Gazebo pose is measured separately in the test.
+
+The adaptive goal check has `stateful: false`: XY position and final heading
+must be within tolerance at the same time. On the last at most 0.30 m of a
+one-way path, within 0.18 m of the goal, the final approach switches to
+holonomic mode. It corrects position first, then rotates with a full-footprint
+check. An Ackermann alignment arc therefore cannot carry the robot away
+from an already reached position. This transition does not skip a planned
+pivot, reversal, or remaining loop section that merely passes near the goal.
+
+The adaptive Lattice planner also validates the final connection to the
+exact requested pose. If snapping position or heading to the lattice blocks
+the goal, it searches for a traversable intermediate pose within
+`GridBased.goal_connection_distance` (0.25 m). There it can rotate the
+chassis, then translate at constant heading to the original goal. The entire
+rotation and connection are checked with the planning reserve; an occupied
+goal is still rejected. This is not a tolerance that moves the goal:
+the last plan pose keeps the requested coordinates and orientation.
+
+Marking new LiDAR obstacles is limited to 3 m; raytracing clears up to 3.5 m.
+A long test revealed shifted cells on distant walls that blocked an otherwise
+traversable goal. The static map still covers the entire world; these limits
+apply only to costmap observations, not SLAM or AMCL sensor range. The
+behavior-tree timeout increased from 200 ms to 3,000 ms so two planning
+searches would not cause a premature service-call or cancellation timeout.
+
+To record a long test after initializing a fresh corridor simulation in
+domain 88:
 
 ```bash
 RANGER_SIM_DOMAIN=88 bash simulation.sh validate_long_route \
   --goal '[13.8,6.0,0.0]' --output /tmp/ranger-long-route.json
 ```
 
-Test sprema poze, naredbe, promjene načina, stvarne rotacije iz Gazeba,
-razloge replaniranja i snimke obje costmape. Željeni rezultat nije samo poruka
-`Goal succeeded`, nego i provjerena odsutnost kolizija te istodobne bočne
-brzine i kutne brzine, koje baza u ovom načinu ne izvršava zajedno.
+The test saves poses, commands, mode changes, actual Gazebo rotations,
+replanning reasons, and both costmap snapshots. The intended result includes
+more than `Goal succeeded`: collision absence and absence of simultaneous
+lateral and angular velocity must also be checked, since this base mode does
+not execute them together.
 
-## Dijagnostika
+## Diagnostics
 
-- `/navigation_mode`: trenutačni način, uključujući poravnanje i kočenje.
-- `/navigation_mode_decision`: radijus (`null` znači ravno / beskonačno),
-  geometrijska izvedivost, procjene vremena i broj promjena načina.
-  `holonomic_eta: null` označava da ta referenca traži Ackermann slijed poza.
-- `/navigation_plan_decision`: odabrani globalni kandidat i njegove procjene.
+- `/navigation_mode`: current mode, including alignment and braking.
+- `/navigation_mode_decision`: radius (`null` means straight/infinite),
+  geometric feasibility, time estimates, and mode-switch count.
+  `holonomic_eta: null` means the reference requires an Ackermann pose sequence.
+- `/navigation_plan_decision`: selected global candidate and its estimates.
 - `/navigation_modes`: RViz MarkerArray.
-- `/plan`, `/local_plan`, `/cmd_vel`, `/odometry/filtered`: putanja i praćenje.
+- `/plan`, `/local_plan`, `/cmd_vel`, `/odometry/filtered`: path and tracking.
 
-Dijagnostičke ROS naredbe moraju koristiti isti instalacijski overlay i
-`ROS_DOMAIN_ID=87`, `ROS_LOCALHOST_ONLY=1` kao interaktivna simulacija.
-Automatske validacije rade isključivo u zasebnoj domeni 88.
+Diagnostic ROS commands must use the same installed overlay and
+`ROS_DOMAIN_ID=87`, `ROS_LOCALHOST_ONLY=1` as the interactive simulation.
+Automatic validation runs exclusively in separate domain 88.
 
-## Ponovljiva validacija
+## Reproducible validation
 
-Nakon pokretanja **svježe** simulacije hodnika uz `RANGER_SIM_DOMAIN=88`
-i slanja početne poze u istoj domeni:
+After starting a **fresh** corridor simulation with `RANGER_SIM_DOMAIN=88`
+and sending the initial pose in the same domain:
 
 ```bash
 RANGER_SIM_DOMAIN=88 bash simulation.sh validate_tracking \
@@ -296,171 +318,183 @@ RANGER_SIM_DOMAIN=88 bash simulation.sh validate_tracking \
   --output /tmp/ranger-corridor-results.json
 ```
 
-Test mjeri stvarno kretanje u oba načina, promjenu unutar istog cilja,
-razliku između putanje i lokalizirane poze, footprint kolizije prema Gazebo
-geometriji, ograničenja naredbi, TF roditelje i zaustavljanje nakon otkaza.
-`validate_path_retention --profile adaptive` zasebno provjerava novu prepreku
-u svijetu `slam_lab`: očekuje početni plan i jedan opravdani novi plan,
-bez `FollowPath` oporavka. Taj test također mora krenuti iz svježe simulacije.
+The test measures actual motion in both modes, switching within the same
+goal, path/localized-pose differences, footprint collisions against Gazebo
+geometry, command limits, TF parents, and stopping after cancellation.
+`validate_path_retention --profile adaptive` separately checks a new obstacle
+in `slam_lab`: it expects an initial plan and one justified replan, without
+`FollowPath` recovery. That test must also begin from a fresh simulation.
 
-Automatske provjere svijeta, geometrije i baznog upravljanja pokreće
-`bash simulation.sh test`. C++ regresijski testovi se uključuju buildom
-`ranger_nav_plugins` s `-DBUILD_TESTING=ON`, a pokreću kroz CTest.
+`bash simulation.sh test` runs automatic world, geometry, and base-control
+checks. Enable C++ regressions by building `ranger_nav_plugins` with
+`-DBUILD_TESTING=ON`, then run them through CTest.
 
-## Cilj iz loga i redoslijed zakreta (2026-11-01)
 
-Ispravljena je početna odbijenica `goal is occupied with no tolerance` za
-cilj `(14.3401, 5.96356, -1.03037)`: Lattice mreža zaokruživala je prohodnu
-zadanu pozu na neprohodnu diskretnu pozu. Završni spoj sada zadržava točan
-cilj i provjerava cijeli zakret/prilaz. Dodane su provjere rotacije prije
-zastoja, poštovanje mjesta planiranih zakreta, korištenje stvarne završne
-međutočke na dugim putanjama i izuzimanje obaveznih zakreta iz pauze za
-opcionalne promjene orijentacije.
+## Logged goal and rotation sequencing (2026-11-01)
 
-**Cijela vožnja do toga cilja još nije potvrđena uspješnom.** Početna
-reprodukcija prekinuta je prije kretanja. Nakon ispravaka robot je slijedio
-jedan plan i stigao do završnog zakreta, ali nova LiDAR opažanja označila su
-rub završne putanje zauzetim. `IsPathValid` je prekinuo akciju; nije bilo
-`FollowPath` neuspjeha ni detektirane kolizije. U posljednjem pokusu s
-pragom zadržavanja rotacije RMS praćenja bio je 1.35 cm, a završna poza
-udaljena 2.81 cm od cilja uz preostalu kutnu pogrešku 0.493 rad (28.3°).
-Akcija je završila statusom 6 nakon 237.1 s; to nije dosegnut cilj.
+The initial `goal is occupied with no tolerance` rejection for
+`(14.3401, 5.96356, -1.03037)` was fixed: lattice snapping mapped a
+traversable requested pose to a blocked discrete pose. The final connection
+now retains the exact goal and validates the complete rotation/approach.
+Checks were added for rotating before a stall, honoring planned rotation
+locations, using the actual final waypoint on long paths, and excluding
+mandatory rotations from the pause for optional heading changes.
 
-U prethodnom pokusu, prije praga zadržavanja rotacije, na prvom poništenju
-putanje dvije ćelije uz gornji zid, sa središtima
-`(14.475, 6.425)` i `(14.525, 6.425)`, promijenile su trošak s 253 na 254.
-Geometrijski rub zida je `y=6.5`. Trenutačna lokalizacija i LiDAR opažanja
-zato ne daju stabilnu rezervu za taj tijesan završni zakret. Izvršni padding
-0.02 m i dodatna rezerva planiranja 0.04 m nisu smanjeni. Potrebna je zasebna
-provjera podudaranja skena i karte uz zid prije pouzdanog korištenja ove poze.
-I naknadni pokušaj odlaska do kontrolnog cilja iz te tijesne završne poze
-odbijen je tijekom planiranja; sačuvan je kao zaseban neuspjeli pokus.
+**The full drive to that goal has not yet been confirmed successful.**
+The initial reproduction was interrupted before motion. After the fixes,
+the robot followed one plan and reached the final rotation, but new LiDAR
+observations marked the final path boundary occupied. `IsPathValid`
+interrupted the action; there was no `FollowPath` failure or detected
+collision. In the last trial with the rotation hold threshold, tracking RMS
+was 1.35 cm and the final pose was 2.81 cm from the goal with 0.493 rad
+(28.3°) of remaining heading error. The action ended with status 6 after
+237.1 s; the goal was not reached.
 
-Sirovi rezultati prije i nakon ispravka, međupokušaji i snimke costmapa
-sačuvani su u `validation/navigation-goal-*-20261101*`.
-`navigation-goal-clearance-20261101.json` bilježi ćelije koje su poništile
-završetak. Kontrolni testovi rotacije i nove prepreke navode se zasebno;
-njihov uspjeh ne zamjenjuje neuspjeli pokus izvornog cilja.
+In the preceding trial, before the rotation hold threshold, the first path
+invalidation occurred when two cells near the upper wall, centered at
+`(14.475, 6.425)` and `(14.525, 6.425)`, changed cost from 253 to 254.
+The geometric wall boundary is `y=6.5`. Current localization and LiDAR
+observations therefore do not provide a stable reserve for that tight final
+rotation. The 0.02 m execution padding and additional 0.04 m planning reserve
+were not reduced. Scan/map alignment near the wall needs a separate check
+before this pose can be used reliably. A later attempt to leave that tight
+final pose for a control goal was also rejected during planning and retained
+as a separate failed trial.
 
-Odvojeni kontrolni cilj `(0, 0, pi/2)` iz svježe simulacije završen je za
-36.4 s uz jedan plan, bez kolizije i bez BT neuspjeha. Završna pogreška
-položaja u karti bila je 1.86 cm, a kuta 0.141 rad (8.1°, unutar zadane
-tolerancije 0.15 rad). Prije praga zadržavanja rotacije isti test nije
-završio u 90 s i imao je 55 promjena načina; nakon ispravka zabilježeno je
-13 promjena. To je poboljšanje, a ne tvrdnja da su sva zaustavljanja uklonjena.
-Zapisi su `navigation-goal-rotation-before-hysteresis-20261101.json` i
+Raw before/after results, intermediate trials, and costmap snapshots are
+preserved under `validation/navigation-goal-*-20261101*`.
+`navigation-goal-clearance-20261101.json` records the cells that invalidated
+the final approach. Rotation and new-obstacle control tests are reported
+separately; their success does not replace the failed original-goal trial.
+
+A separate control goal `(0, 0, pi/2)` from a fresh simulation completed in
+36.4 s with one plan, no collision, and no behavior-tree failure. Final map
+position error was 1.86 cm and heading error was 0.141 rad (8.1°, within the
+configured 0.15 rad tolerance). Before the rotation hold threshold, the same
+test did not finish within 90 s and had 55 mode changes; after the fix, 13
+changes were recorded. This is an improvement, not a claim that every stop
+was eliminated. Records are
+`navigation-goal-rotation-before-hysteresis-20261101.json` and
 `navigation-goal-rotation-control-20261101.json`.
-Ovi pokusi prethode završnoj dopuni provjere dolaska. Ta je dopuna dodana
-nakon testa zamjene cilja koji je otkrio lažni `SUCCEEDED`: uz `stateful`
-provjeru robot je završio 0.56 m od novog cilja nakon Ackermann poravnanja.
-Neuspjeli zapis je `navigation-goal-before-final-alignment-20261101.json`.
 
-Završni regresijski niz na posljednjim bibliotekama prošao je u svježem
-`slam_lab` svijetu: nepromijenjeni cilj i kroz-točke po jedan plan;
-umetnuta prepreka ukupno dva plana, reakcija 0.947 s i bez `FollowPath`
-oporavka; zamjena cilja dva plana i završna XY pogreška 5.48 cm uz kutnu
-pogrešku 0.0044 rad. Otkazivanje je vratilo `CANCELED`, nultu naredbu i
-mirovanje. Nije zabilježena kolizija. Zapis je
-`navigation-goal-obstacle-20261101.json`.
+These trials predate the final goal-check refinement. That refinement was
+added after a goal-preemption test exposed a false `SUCCEEDED`: with a
+`stateful` check, the robot finished 0.56 m from the new goal after
+Ackermann alignment. The failed record is
+`navigation-goal-before-final-alignment-20261101.json`.
 
-Prošlo je 50 C++ i 24 Python provjera. Testovi su izvedeni bez GUI-ja u
-izoliranoj domeni 88; fizički robot nije testiran. Manifest izvora i
-instaliranih biblioteka je `validation/navigation-goal-summary-20261101.json`.
-Biblioteke su postavljene u zadani `.runtime`; za učitavanje izmjena treba
-potpuno ponovno pokrenuti navigacijski launch.
+The final regression sequence on the latest libraries passed in a fresh
+`slam_lab` world: an unchanged goal and through-poses each used one plan;
+an inserted obstacle required two plans, a 0.947 s reaction, and no
+`FollowPath` recovery; goal preemption used two plans and finished with
+5.48 cm XY error and 0.0044 rad heading error. Cancellation returned
+`CANCELED`, a zero command, and a stationary robot. No collision was
+recorded. The record is `navigation-goal-obstacle-20261101.json`.
 
-![Posljednji prolaz do izvornog cilja, zaustavljen prije završetka](validation/navigation-goal-20261101.png)
+All 50 C++ and 24 Python checks passed. Tests ran without a GUI in isolated
+domain 88; no physical robot was tested. The source/installed-library manifest
+is `validation/navigation-goal-summary-20261101.json`. Libraries were
+installed into the default `.runtime`; completely restart the navigation
+launch to load the changes.
 
-## Validacija dopune rotacije (2026-10-31)
+![Last attempt at the original goal, stopped before completion](validation/navigation-goal-20261101.png)
 
-Gazebo Classic, bez GUI-ja, izolirana ROS domena 88. Dva uspješna cilja
-izvedena su u istoj simulaciji, bez resetiranja lokalizacije između vožnji:
+## Rotation-update validation (2026-10-31)
 
-| Cilj `(x, y, yaw rad)` | Vrijeme | Globalni planovi | RMS praćenja | Završna pogreška u karti |
+Gazebo Classic ran without a GUI in isolated ROS domain 88. Two successful
+goals were executed in the same simulation without resetting localization
+between drives:
+
+| Goal `(x, y, yaw rad)` | Duration | Global plans | Tracking RMS | Final map error |
 | --- | --- | --- | --- | --- |
 | `(13.7986, 6.0, 0)` | 206.0 s | 1 | 1.60 cm | 8.95 cm |
 | `(13.85, 4.45, -1.54592)` | 70.2 s | 1 | 1.59 cm | 9.05 cm |
 
-Obje vožnje prošle su bez `FollowPath`/`IsPathValid` neuspjeha, detektiranih
-footprint kolizija i istodobne bočne/kutne naredbe. Druga je uključivala
-izmjerenu rotaciju na mjestu od ukupno 1.577 rad, približno 90°.
-Prva ruta nije trebala zakret šasije: prohodna bočna vožnja ostaje dopuštena.
-Završne pogreške prema Gazebo pozi bile su 5.3 i 7.1 cm. To su pojedinačne
-vožnje, a ne statističko jamstvo ponovljivosti ili optimalnog trajanja.
+Both drives completed without `FollowPath`/`IsPathValid` failures,
+detected footprint collisions, or simultaneous lateral/angular commands.
+The second included measured in-place rotation totaling 1.577 rad,
+approximately 90°. The first route needed no chassis rotation: traversable
+lateral driving remains permitted. Final errors against the Gazebo pose were
+5.3 and 7.1 cm. These are individual drives, not a statistical guarantee of
+repeatability or optimal duration.
 
-Izvorni drugi cilj `(14.5994, 4.5625, -1.54592)` nakon duge rute odbijen je
-jer opaženi footprint nema rezervu uz prepreke. Odbijena je i probna poza
-`(14.5, 4.35, -1.54592)`, koja zahvaća donji zid. Te se odbijenice ne računaju
-kao uspješna navigacija; između prve i druge uspješne vožnje robot se zbog
-njih nije pomaknuo. Raniji izolirani test izvornog drugog cilja prošao je za
-44.1 s uz približno 94° zakreta, ali to ne potvrđuje njegovu prohodnost nakon
-novih LiDAR opažanja. Za ponavljanje završnog manevra koristiti gore navedenu
-provjerenu pozu `(13.85, 4.45, -1.54592)`.
+The original second goal `(14.5994, 4.5625, -1.54592)` after the long route
+was rejected because the observed footprint lacked obstacle clearance.
+The trial pose `(14.5, 4.35, -1.54592)`, which intersects the lower wall,
+was also rejected. These rejections do not count as successful navigation;
+they caused no motion between the two successful drives. An earlier isolated
+test of the original second goal completed in 44.1 s with approximately 94°
+of rotation, but that does not confirm clearance after new LiDAR observations.
+Use the verified pose `(13.85, 4.45, -1.54592)` above to repeat the final
+maneuver.
 
-Prošlo je 40 C++ i 24 Python provjera. Dodatno je ispravljeno rušenje planera
-pri izlasku: Humble Hybrid i Lattice učitavaju se u odvojenim plugin opsezima,
-čime se izbjegava dvostruko oslobađanje zajedničkih statičkih podataka.
-Završni `planner_server` nakon navigacije uredno je ugašen.
+All 40 C++ and 24 Python checks passed. A planner crash on exit was also
+fixed: Humble Hybrid and Lattice load in separate plugin scopes, avoiding a
+double free of shared static data. The final `planner_server` shut down
+cleanly after navigation.
 
-Ponovljeni test u `slam_lab` potvrdio je jedan globalni plan za nepromijenjeni
-cilj i jedan za prolazak kroz međutočke. Prepreka dodana tijekom vožnje
-izazvala je jedan opravdani novi plan nakon 0.962 s; cilj je dosegnut s ukupno
-dva plana, bez `FollowPath` oporavka i bez kolizije. Prošli su i zamjena cilja
-te otkazivanje uz zaustavljanje robota. Zapis je
+A repeated `slam_lab` test confirmed one global plan for an unchanged goal
+and one for through-poses. An obstacle inserted during driving caused one
+justified replan after 0.962 s; the goal was reached with two plans total,
+without `FollowPath` recovery or collision. Goal preemption and cancellation
+with the robot stopping also passed. The record is
 `validation/navigation-rotation-obstacle-20261031.json`.
 
-Podaci: `validation/navigation-long-rotation-final-20261031.json`,
-`validation/navigation-second-after-route-20261031.json` i
+Data: `validation/navigation-long-rotation-final-20261031.json`,
+`validation/navigation-second-after-route-20261031.json`, and
 `validation/navigation-second-user-goal-after-route-20261031.json`.
-Ranije neuspjele probe i rezultati prije ispravka gradijenta troška/završne
-tolerancije ostaju sačuvani zasebno. Parametri i provjera prostora vrijede za
-ovu simulaciju; ponašanje na fizičkom robotu nije ispitano.
-Sažetak provjera i SHA-256 izvora/instaliranih biblioteka nalazi se u
+Earlier failed trials and results before the cost-gradient/final-tolerance
+fix remain stored separately. Parameters and clearance validation apply to
+this simulation; physical-robot behavior was not tested. The validation
+summary and source/installed-library SHA-256 hashes are in
 `validation/navigation-rotation-summary-20261031.json`.
-Provjerene biblioteke postavljene su u zadani `.runtime`; za učitavanje
-izmjena treba potpuno ponovno pokrenuti navigacijski launch.
+Verified libraries were installed in the default `.runtime`; completely
+restart the navigation launch to load changes.
 
-![Duga ruta i izmjereno zakretanje](validation/navigation-rotation-20261031.png)
+![Long route and measured rotation](validation/navigation-rotation-20261031.png)
 
-## Prethodna validacija, prije dopune rotacije (2026-10-31)
+## Earlier validation, before the rotation update (2026-10-31)
 
-Svi navedeni pokusi izvedeni su bez GUI-ja, na domeni 88. RViz konfiguracija
-ima novi prikaz načina vožnje; ova provjera nije vizualni GUI test.
+All trials below ran without a GUI in domain 88. The RViz configuration
+includes a new driving-mode display; this validation was not a visual GUI
+test.
 
-- Samostalni Ackermann: tri referentna cilja, jedan plan po cilju. Ranije
-  problematičan treći manevar skraćen je s 104.4 s / dva plana na 62.5 s /
-  jedan plan, uz RMS pogrešku 2.1 cm. Nije bilo kolizija.
-- Samostalni holonomski test nove prepreke: početni plan i jedan novi plan
-  nakon blokiranja putanje; reakcija 0.95 s, bez `FollowPath` oporavka.
-  Prošli su i kroz-točke, promjena cilja te otkazivanje.
-- Adaptivni test nove prepreke također je prošao s dva plana ukupno,
-  reakcijom 0.96 s i bez `FollowPath` oporavka. Prošli su kroz-točke,
-  promjena cilja i otkazivanje; bez kolizija.
-- Adaptivni `corridor_lab`: ciljevi G1/G2/G3 završeni su za 29.5/31.2/45.8 s,
-  svaki s jednim planom. RMS praćenja: 1.8/3.8/5.0 cm; maksimalno odstupanje
-  u trećem prolazu 15.6 cm. Oba načina potvrđena su mjerenim kretanjem,
-  uključujući prebacivanje unutar trećeg cilja. Nula footprint kolizija i
-  nula kršenja Ackermann radijusa; otkazivanje je zaustavilo robot.
+- Standalone Ackermann: three reference goals, one plan per goal. The
+  previously problematic third maneuver decreased from 104.4 s/two plans
+  to 62.5 s/one plan, with 2.1 cm RMS error. No collisions occurred.
+- Standalone holonomic new-obstacle test: an initial plan and one replan after
+  the path was blocked; 0.95 s reaction and no `FollowPath` recovery.
+  Through-poses, goal preemption, and cancellation also passed.
+- The adaptive new-obstacle test also passed with two plans total, a 0.96 s
+  reaction, and no `FollowPath` recovery. Through-poses, goal preemption,
+  and cancellation passed without collisions.
+- Adaptive `corridor_lab`: G1/G2/G3 completed in 29.5/31.2/45.8 s, each with
+  one plan. Tracking RMS was 1.8/3.8/5.0 cm; maximum deviation in the third
+  drive was 15.6 cm. Both modes were confirmed through measured motion,
+  including a switch within the third goal. There were zero footprint
+  collisions and zero Ackermann-radius violations; cancellation stopped the
+  robot.
 
-Dodatni adaptivni cilj `(1.2, 1.2, 90°)` izvršen je Ackermannom za 16.2 s,
-s jednim planom i RMS pogreškom 2.0 cm. Time je provjeren
-i zakrivljeni Ackermann slijed orijentacija u adaptivnom kontroleru.
+An additional adaptive goal `(1.2, 1.2, 90°)` was executed in Ackermann mode
+in 16.2 s, with one plan and 2.0 cm RMS error. This also checked a curved
+Ackermann heading sequence in the adaptive controller.
 
-RMS opisuje praćenje putanje, ne završnu točnost cilja. U ovom profilu je
-završna pogreška poze u karti približno 16–18 cm. ETA je nominalni model:
-primjerice početna procjena ravnog cilja bila je 15.6 s, a stvarno trajanje
-29.5 s. Model ne dokazuje da je odabrana izvedba vremenski optimalna.
-Poravnanje kotača pri prelasku između crab smjerova i načina vožnje i dalje
-zahtijeva kratka zaustavljanja. Nisu potvrđene sve moguće kombinacije uskih
-prolaza ni prepreke koje se neprestano kreću.
+RMS describes path tracking rather than final goal accuracy. In this profile,
+final map-pose error is approximately 16–18 cm. ETA is a nominal model:
+for example, the initial estimate for the straight goal was 15.6 s, while
+actual duration was 29.5 s. The model does not prove that the selected
+execution is time-optimal. Wheel alignment when switching between crab
+directions and driving modes still requires short stops. Not every narrow
+passage combination or continuously moving obstacle has been validated.
 
-Podaci: `validation/navigation-progress-ackermann-20261031.json`,
-`validation/navigation-progress-obstacle-20261031.json` i
-`validation/navigation-adaptive-corridor-20261031.json` te
+Data: `validation/navigation-progress-ackermann-20261031.json`,
+`validation/navigation-progress-obstacle-20261031.json`,
+`validation/navigation-adaptive-corridor-20261031.json`, and
 `validation/navigation-adaptive-obstacle-20261031.json`.
-Prijašnji pokušaji ostaju sačuvani kao `trial1` i `trial2`; `trial2` bilježi
-odbačenu procjenu holonomskog praćenja Ackermann reference s promjenom smjera.
+Earlier attempts remain stored as `trial1` and `trial2`; `trial2`
+records the rejected estimate of holonomic tracking for an Ackermann
+reference with a reversal.
 
-![Izmjereni prolaz](validation/navigation-adaptive-corridor-20261031.png)
+![Measured drive](validation/navigation-adaptive-corridor-20261031.png)
 
-![Raspored cijelog svijeta](validation/corridor-lab-layout-20261031.png)
+![Full world layout](validation/corridor-lab-layout-20261031.png)

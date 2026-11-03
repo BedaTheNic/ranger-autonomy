@@ -28,9 +28,10 @@ with tempfile.TemporaryDirectory(prefix='ranger-update-test-') as tmp:
     (deployment/'.env').write_text(environment)
     (deployment/'maps').mkdir();(deployment/'maps/keep.txt').write_text('local map')
     (deployment/'logs').mkdir();(deployment/'logs/keep.txt').write_text('local logs')
+    (deployment/'README.md').write_text('Retired hardware documentation')
     shutil.copyfile(hardware/'apply_update.sh',deployment/'apply_update.sh')
     files=['compose.yaml','compose.gui.yaml','compose.drive.yaml','drive_guard.py','robot.sh','viewer.sh',
-           'drive.sh','inspect_drive.py','ackermann_diagnostics.py','ackermann_check.sh','README.md']
+           'drive.sh','inspect_drive.py','ackermann_diagnostics.py','ackermann_check.sh']
     for name in files:shutil.copyfile(hardware/name,payload/name)
     configurations=[('compose.yaml','planner'),('compose.gui.yaml','rviz-web'),('compose.drive.yaml','drive-guard')]
     configs=[];containers=[];before={}
@@ -64,6 +65,7 @@ with tempfile.TemporaryDirectory(prefix='ranger-update-test-') as tmp:
         assert (deployment/'.env').read_text()==environment
         assert (deployment/'maps/keep.txt').read_text()=='local map'
         assert (deployment/'logs/keep.txt').read_text()=='local logs'
+        assert not (deployment/'README.md').exists(),'Retired hardware README must be removed'
         assert (root/'disarmed').read_text()=='called'
         for cid,(_,role) in zip(containers,configurations):
             info=json.loads(run('docker','inspect',cid))[0]

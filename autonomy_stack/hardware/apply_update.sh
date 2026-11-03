@@ -8,7 +8,7 @@ revision="${1:?Usage: bash apply_update.sh VERIFIED_COMMIT_SHA}"
 stage="$(mktemp -d "$hardware_dir/.update.XXXXXX")"
 trap 'rm -rf -- "$stage"' EXIT
 files=(compose.yaml compose.gui.yaml compose.drive.yaml drive_guard.py robot.sh viewer.sh drive.sh
-       inspect_drive.py ackermann_diagnostics.py ackermann_check.sh README.md)
+       inspect_drive.py ackermann_diagnostics.py ackermann_check.sh)
 for file in "${files[@]}"; do
   curl -fsSL "https://raw.githubusercontent.com/BedaTheNic/ranger-autonomy/$revision/autonomy_stack/hardware/$file" -o "$stage/$file"
 done
@@ -71,5 +71,6 @@ while IFS=$'\t' read -r id service current target; do
   fi
 done < "$stage/containers.tsv"
 for file in "${files[@]}"; do cp -- "$stage/$file" "$hardware_dir/$file"; done
+rm -f -- "$hardware_dir/README.md"
 if [[ -n "$drive_id" ]]; then docker start "$drive_id" >/dev/null; fi
 echo 'Update complete. Gateway starts disarmed. When nodes are active: bash drive.sh arm'

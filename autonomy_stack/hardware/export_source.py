@@ -44,7 +44,8 @@ def export(workspace, destination):
     (destination/'README.md').write_text(
         '# Ranger autonomy — Jazzy\n\n'
         'Adaptive navigation and structured logging, packaged as separate ROS containers.\n\n'
-        'Build/publish/deploy: [instructions](autonomy_stack/hardware/README.md).\n\n'
+        'Build/publish: [release helper](autonomy_stack/hardware/release.sh).\n\n'
+        'Deploy: [robot helper](autonomy_stack/hardware/robot.sh).\n\n'
         'Canonical navigation behavior: [details](docs/ADAPTIVE_NAVIGATION.md).\n\n'
         'Structured logging: [details](docs/LOGGING.md).\n')
     (destination/'.gitignore').write_text(

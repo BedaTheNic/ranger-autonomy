@@ -59,13 +59,10 @@ The existing `jazzy-r3-gui` viewer is compatible.
 
 For an existing installation, preserve `.env` (including `NAV_PROFILE`), maps
 and logs, stop/disarm driving, change `AUTONOMY_IMAGE` to the new tag, then pull
-and recreate the navigation and gateway containers. See the detailed upgrade
-commands in the [hardware instructions](autonomy_stack/hardware/README.md).
+and recreate the navigation and gateway containers.
 
 ## Build and publish
 
-[Complete build/deployment instructions](autonomy_stack/hardware/README.md)
-cover local Docker builds, GHCR/Docker Hub/private registries and the robot’s amd64 architecture.
 The [GitHub Actions workflow](.github/workflows/publish.yaml) verifies the original
 navigation/logging regressions and real inter-container planning/logging before
 publishing images and a deployment archive. Push a `jazzy-*` tag or run it manually.

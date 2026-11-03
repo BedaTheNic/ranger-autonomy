@@ -52,7 +52,7 @@ case "$action" in
     trap 'rm -rf -- "$stage"' EXIT
     mkdir -p "$stage/ranger-hardware/maps" "$stage/ranger-hardware/logs"
     cp -- "$hardware_dir/compose.yaml" "$hardware_dir/.env.example" \
-      "$hardware_dir/README.md" "$hardware_dir/robot-contract.yaml" \
+      "$hardware_dir/robot-contract.yaml" \
       "$hardware_dir/robot.sh" "$hardware_dir/inspect_drive.py" \
       "$hardware_dir/compose.gui.yaml" "$hardware_dir/viewer.sh" \
       "$hardware_dir/compose.drive.yaml" "$hardware_dir/drive.sh" \
