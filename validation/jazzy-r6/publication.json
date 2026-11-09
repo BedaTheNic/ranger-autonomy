@@ -1,0 +1,12 @@
+{
+  "published": true,
+  "version": "jazzy-r6",
+  "anonymous_pull_verified": true,
+  "image_digest": "sha256:8c6b72a2ca41de4fe46c2e94f8d7a02b92c266991fef7a4e0e538c5cd59939ec",
+  "architecture": "linux/amd64",
+  "source_revision": "1e9a71d94cba65b38eec1f8a777d9cfaa9227a2d",
+  "archive_url": "https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r6/ranger-hardware-deploy.tar.gz",
+  "archive_sha256": "82fc833fba8537028028b1a5838cebed56f7d35e15581f3a56d86872771c08d3",
+  "archive_bytes": 20538,
+  "workflow": "https://github.com/BedaTheNic/ranger-autonomy/actions/runs/42618898750"
+}

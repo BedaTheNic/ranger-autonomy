@@ -24,5 +24,14 @@
   "planning_padding_m": 0,
   "lattice_search_padding_m": 0,
   "measured_CAN_feedback": true,
-  "drive_gateway": true
+  "drive_gateway": true,
+  "github_verification_passed": true,
+  "github_workflow": "https://github.com/BedaTheNic/ranger-autonomy/actions/runs/42618898750",
+  "github_checks": [
+    "unit and logging regressions",
+    "measured CAN feedback and adaptive arming",
+    "all three profiles with actual NavigateToPose and periodic retained-path checks",
+    "live footprint and logging verification",
+    "drive gateway"
+  ]
 }
