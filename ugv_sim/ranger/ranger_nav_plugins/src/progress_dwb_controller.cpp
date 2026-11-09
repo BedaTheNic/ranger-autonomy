@@ -22,6 +22,7 @@ using TrackingException = nav2_core::PlannerException;
 class ProgressDWBController : public dwb_core::DWBLocalPlanner
 {
 public:
+  void deactivate() override {reference_.poses.clear();dwb_core::DWBLocalPlanner::deactivate();}
   void setSpeedLimit(const double & limit,const bool & percentage) override
   {
     const double maximum=node_.lock()->get_parameter(dwb_plugin_name_+".max_speed_xy").as_double();
@@ -31,6 +32,7 @@ public:
   void setPlan(const nav_msgs::msg::Path & path) override
   {
     if(path.poses.empty()) {throw TrackingException("Empty holonomic reference");}
+    if(sameStampedPath(reference_,path)) {return;}
     reference_=path;cursor_=0;furthest_=0;assist_.reset();heading_.reset();
     const auto pivot=nextPivot(points(path),0);
     terminal_pivot_=bool(pivot);active_end_=pivot?*pivot:path.poses.size()-1;

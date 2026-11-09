@@ -130,20 +130,6 @@ TEST(RouteQuality, RetainedPathUsesReserveAndIgnoresPassedObstacle)
   EXPECT_TRUE(retainedPathFree(path,{.8,0,0},cursor,grid,reserve));
 }
 
-TEST(RouteQuality, NearStraightCanAlignWithoutChangingEndpointsOrLength)
-{
-  Grid grid(600,300,.02,-1.,-2.,0);
-  const Pose2 a{0,0,0}, b{8,.208,0};
-  auto path=points(densePath({a,b},std_msgs::msg::Header{}));
-  const double length=pathLength(path);
-  EXPECT_EQ(alignStraights(path,grid,footprint(),{}),1u);
-  EXPECT_NEAR(pathLength(path),length,1e-8);
-  EXPECT_DOUBLE_EQ(path.front().a,a.a);EXPECT_DOUBLE_EQ(path.back().a,b.a);
-  EXPECT_TRUE(pathFree(path,grid,footprint()));
-  auto diagonal=points(densePath({a,{2,1,0}},std_msgs::msg::Header{}));
-  EXPECT_EQ(alignStraights(diagonal,grid,footprint(),{}),0u);
-}
-
 TEST(StoppingDistance, SlowsBeforeObstacleAndAccountsForSensorDelay)
 {
   Grid grid(400,120,.01,-1,-.6,0);
@@ -165,4 +151,214 @@ TEST(RouteQuality, InvalidSmoothingKeepsRawRouteAndItsReversal)
   EXPECT_EQ(selectHybrid(raw,bend,grid,footprint(),{}),HybridChoice::raw);
   unsigned x,y;grid.worldToMap(.75,.2,x,y);grid.setCost(x,y,254);
   EXPECT_EQ(selectHybrid(raw,bend,grid,footprint(),{}),HybridChoice::none);
+}
+
+#include "../src/segment_route.hpp"
+TEST(HolonomicPath, CloseButFeasibleWheelSweepIsCostlierThanOpenDetour)
+{
+  Grid grid(160,160,.025,-1.,-1.,0);
+  unsigned x,y;grid.worldToMap(.95,.37,x,y);grid.setCost(x,y,254);
+  const std::vector<Pose2> near{{0.,0.,0.},{2.,0.,0.}};
+  const std::vector<Pose2> detour{{0.,0.,0.},{1.,-.3,0.},{2.,0.,0.}};
+  ASSERT_TRUE(pathFree(near,grid,footprint()));
+  ASSERT_TRUE(pathFree(detour,grid,footprint()));
+  EXPECT_GT(edgeExposure(near,grid,footprint()),edgeExposure(detour,grid,footprint()));
+}
+
+TEST(TravelSegments, GoalBehindUsesForwardTravelAndPreservesBothYaws)
+{
+  Grid grid(300,150,.025,-2,-1.5,0);
+  const std::vector<Pose2> raw{{0,0,M_PI},{2,0,M_PI}};
+  const auto shaped=shapeTravelLegs(raw,grid,footprint(),{});
+  EXPECT_TRUE(pathFree(shaped,grid,footprint()));
+  EXPECT_LT(travelCost(shaped,grid,{}).heading_loss,1e-6);
+  EXPECT_NEAR(wrap(shaped.front().a-M_PI),0,1e-6);
+  EXPECT_NEAR(wrap(shaped.back().a-M_PI),0,1e-6);
+  EXPECT_TRUE(nextPivot(shaped,0));
+  EXPECT_NEAR(pathLength(shaped),2,1e-6);
+}
+
+TEST(TravelSegments, BalancesOppositeWallsAndKeepsRequestedOffCenterEndpoints)
+{
+  Grid grid(300,200,.025,-1,-2.5,0);
+  for(unsigned x=0;x<300;++x) {grid.setCost(x,73,254);grid.setCost(x,126,254);}
+  const std::vector<Pose2> raw{{0,.22,0},{4,.22,0}};
+  auto shaped=shapeTravelLegs(raw,grid,footprint(),{});
+  EXPECT_TRUE(pathFree(shaped,grid,footprint()));
+  EXPECT_NEAR(shaped.front().y,.22,1e-8);EXPECT_NEAR(shaped.back().y,.22,1e-8);
+  EXPECT_LT(std::abs(project(shaped,{2,0,0}).pose.y),.03);
+  EXPECT_LT(travelCost(shaped,grid,{}).center_loss,travelCost(raw,grid,{}).center_loss);
+  for(unsigned x=0;x<300;++x) {grid.setCost(x,126,0);}
+  EXPECT_DOUBLE_EQ(corridorOffset({2,.22,0},0,grid,1.6),0.);
+}
+
+TEST(TravelSegments, KeepsBackwardOrCrabTravelWhenTheSweptTurnCannotFit)
+{
+  Grid grid(300,200,.025,-1,-2.5,254);
+  for(unsigned x=0;x<300;++x) {
+    for(unsigned y=85;y<115;++y) {grid.setCost(x,y,0);}
+  }
+  for(double yaw:{M_PI,M_PI_2}) {
+    const std::vector<Pose2> raw{{0,0,yaw},{3,0,yaw}};
+    auto shaped=shapeTravelLegs(raw,grid,footprint(),{});
+    EXPECT_TRUE(pathFree(shaped,grid,footprint()));
+    EXPECT_FALSE(nextPivot(shaped,0));
+    EXPECT_NEAR(travelCost(shaped,grid,{}).heading_loss,travelCost(raw,grid,{}).heading_loss,1e-6);
+  }
+  // The same narrow endpoints with a wider bay between them permit two turns.
+  for(unsigned x=70;x<134;++x) {
+    for(unsigned y=64;y<136;++y) {grid.setCost(x,y,0);}
+  }
+  const std::vector<Pose2> raw{{0,0,M_PI},{3,0,M_PI}};
+  auto shaped=shapeTravelLegs(raw,grid,footprint(),{});
+  EXPECT_TRUE(pathFree(shaped,grid,footprint()));EXPECT_TRUE(nextPivot(shaped,0));
+  EXPECT_LT(travelCost(shaped,grid,{}).heading_loss,travelCost(raw,grid,{}).heading_loss-1.);
+}
+
+TEST(TravelSegments, IntermediateHeadingOfLongRotationIsPreserved)
+{
+  std::vector<Pose2> turn{{0,0,0},{0,0,2.},{0,0,-2.3},{1,0,-2.3}};
+  EXPECT_EQ(nextPivot(turn,0),1u);
+  EXPECT_EQ(nextPivot(turn,1),2u);
+}
+
+TEST(TravelSegments, ChoosesFewestHandoffsThenSimplestComparableTime)
+{
+  std::vector<RouteRank> candidates{{2,5,8.,0.},{0,4,10.,0.},{0,2,10.8,0.},
+    {0,1,18.,0.},{0,1,5.,2.}};
+  EXPECT_EQ(selectSchedule(candidates,.10),2u);
+  EXPECT_EQ(selectSchedule(candidates,0.),1u);
+}
+
+TEST(TravelSegments, TinyTerminalPivotKeepsExactGoalWithoutAnotherManeuver)
+{
+  std::vector<Pose2> path{{0,0,.002},{1,1,.002},{1,1,0.}};
+  const auto simpler=mergeSmallPivots(path);
+  ASSERT_EQ(simpler.size(),2u);
+  EXPECT_DOUBLE_EQ(simpler.front().a,.002);EXPECT_DOUBLE_EQ(simpler.back().a,0.);
+  path.back().a=M_PI_2;
+  EXPECT_EQ(mergeSmallPivots(path).size(),3u);
+}
+
+TEST(TravelSegments, LineOfSightGraphDropsUnnecessaryStopsAroundObstacle)
+{
+  Grid grid(250,200,.025,-2,-2,0);
+  unsigned x,y;grid.worldToMap(0.,0.,x,y);grid.setCost(x,y,254);
+  std::vector<Pose2> corners{{-1.,0,0},{-.9,.3,0},{-.65,.65,0},{0,.95,0},{.7,.75,0},{1.,0,0}};
+  auto original=points(densePath(corners,std_msgs::msg::Header{}));
+  auto simple=minimumLegRoute(original,0.,grid,footprint());
+  ASSERT_GE(simple.size(),3u);EXPECT_LT(simple.size(),corners.size());
+  EXPECT_TRUE(pathFree(simple,grid,footprint()));
+}
+
+#include "../src/clearance_route.hpp"
+
+TEST(TravelSegments, ClearanceSearchFindsAnOffCentreDetourForAnOrientedFootprint)
+{
+  Grid grid(110,90,.05,-2.75,-2.25,0);
+  unsigned mx,my;
+  grid.worldToMap(0.,0.,mx,my);
+  // Only the near face is initially visible to the moving LiDAR.
+  for(int row=-2;row<=2;++row) {grid.setCost(mx,my+row,254);}
+  const Pose2 start{-1.2,0.,0.},goal{1.2,0.,0.};
+  auto line=clearanceRoute(start,goal,grid,footprint(),0.);
+  ASSERT_GE(line.size(),3u);
+  auto route=constantHeadingRoute(line,0.);
+  ASSERT_TRUE(pathFree(route,grid,footprint()));
+  // The next scan reveals the hidden side of the same object.
+  for(int row=-2;row<=2;++row) {
+    for(int col=1;col<=3;++col) {grid.setCost(mx+col,my+row,254);}
+  }
+  EXPECT_TRUE(pathFree(route,grid,footprint()));
+}
+
+TEST(TravelSegments, ClearancePreferenceAllowsTightOnlyPassageAndStopsRewardingOpenSpace)
+{
+  EXPECT_EQ(selectSchedule({{0,1,7.,0.,.01},{0,3,10.,0.,.12}},.1),1u);
+  EXPECT_EQ(selectSchedule({{0,1,7.,0.,.00}},.1),0u);
+  EXPECT_EQ(selectSchedule({{0,1,7.,0.,.15},{1,3,10.,0.,.20}},.1),0u);
+}
+
+TEST(TravelSegments, UnseenSurfaceChangesOnlyDetourRanking)
+{
+  Grid original(100,100,.05,-2.5,-2.5,0);
+  unsigned x,y;original.worldToMap(.5,0.,x,y);original.setCost(x,y,254);
+  double wx,wy;original.mapToWorld(x,y,wx,wy);
+  BlockingCell hit{wx,wy,254,"edge"};
+  auto risk=occlusionRiskGrid(original,hit,{-1.,wy,0.},.20);
+  ASSERT_TRUE(risk);
+  EXPECT_EQ(original.getCost(x+2,y),0);
+  EXPECT_EQ(risk->getCost(x+2,y),254);
+  EXPECT_EQ(risk->getCost(x-2,y),0);
+  EXPECT_EQ(risk->getCost(x+7,y),0);
+  hit.cost=255;
+  EXPECT_FALSE(occlusionRiskGrid(original,hit,{-1.,wy,0.},.20));
+}
+
+TEST(TravelSegments, TwoVisibleFacesBoundTheEstimatedShadow)
+{
+  Grid grid(100,100,.05,-2.5,-2.5,0);
+  unsigned x,y;grid.worldToMap(.5,.5,x,y);
+  for(unsigned k=0;k<5;++k) {grid.setCost(x+k,y,254);grid.setCost(x,y+k,254);}
+  double wx,wy;grid.mapToWorld(x,y,wx,wy);
+  auto shadow=occlusionRiskGrid(grid,{wx,wy,254,"edge"},{-1.,-1.,0.},.20);
+  ASSERT_TRUE(shadow);
+  EXPECT_EQ(shadow->getCost(x+2,y+2),254);
+  EXPECT_EQ(shadow->getCost(x+5,y+2),0);
+  EXPECT_EQ(shadow->getCost(x+2,y+5),0);
+  EXPECT_EQ(grid.getCost(x+2,y+2),0);
+}
+
+TEST(TravelSegments, SubcellRefinementGivesTheFootprintRoomBesideAnEdge)
+{
+  Grid grid(120,100,.05,-3.,-2.5,0);
+  unsigned mx,my;grid.worldToMap(0.,-.38,mx,my);
+  for(unsigned x=mx-4;x<=mx+4;++x) {grid.setCost(x,my,254);}
+  const std::vector<Pose2> reference{{-1.5,0.,.3},{0.,0.,0.},{1.5,0.,-.4}};
+  double before=0.,after=0.;
+  edgeExposure(constantHeadingRoute(reference,0.),grid,footprint(),&before);
+  const auto refined=centeredCurve(reference,0.,grid,footprint(),true);
+  ASSERT_FALSE(refined.empty());
+  EXPECT_TRUE(pathFree(refined,grid,footprint()));
+  EXPECT_NEAR(distance(refined.front(),reference.front()),0.,1e-9);
+  EXPECT_NEAR(distance(refined.back(),reference.back()),0.,1e-9);
+  EXPECT_EQ(refined.front().a,reference.front().a);
+  EXPECT_EQ(refined.back().a,reference.back().a);
+  edgeExposure(refined,grid,footprint(),&after);
+  EXPECT_GT(after,before+.03);
+  for(unsigned y=0;y<grid.getSizeInCellsY();++y) {grid.setCost(mx,y,254);}
+  EXPECT_TRUE(centeredCurve(reference,0.,grid,footprint(),true).empty());
+}
+
+TEST(TravelSegments, WideBendAllowsOneIntermediateTurnUnderOneController)
+{
+  Grid grid(150,150,.05,-3.,-3.,0);
+  const std::vector<Pose2> corners{{0.,0.,0.},{1.5,0.,0.},{1.5,1.5,M_PI_2}};
+  const auto input=points(densePath(corners,std_msgs::msg::Header{},.08));
+  const auto route=twoHeadingCurve(input,grid,footprint());
+  ASSERT_FALSE(route.empty());
+  EXPECT_TRUE(pathFree(route,grid,footprint()));
+  EXPECT_EQ(route.front().a,0.);
+  EXPECT_NEAR(route.back().a,M_PI_2,1.e-9);
+  EXPECT_EQ(decide(route,{},0.).mixed.switches,0u);
+  unsigned middle_pivots=0;
+  for(size_t i=0;i+1<route.size();++i) {
+    if(distance(route[i],route[i+1])<1e-6 && distance(route[i],route.front())>.01 &&
+        distance(route[i],route.back())>.01) {++middle_pivots;}
+  }
+  EXPECT_EQ(middle_pivots,1u);
+}
+
+TEST(HolonomicPath, ResumeReusesOnlyTheSameStampedGeometry)
+{
+  std_msgs::msg::Header header;header.frame_id="map";header.stamp.sec=4;
+  const auto plan=densePath({{0.,0.,0.},{0.,0.,M_PI_2},{0.,1.,M_PI_2}},header);
+  auto resumed=plan;
+  EXPECT_TRUE(sameStampedPath(plan,resumed));
+  resumed.poses.back().pose.position.y+=.01;
+  EXPECT_FALSE(sameStampedPath(plan,resumed));
+  resumed=plan;++resumed.header.stamp.sec;
+  EXPECT_FALSE(sameStampedPath(plan,resumed));
+  resumed.header.stamp.sec=0;
+  EXPECT_FALSE(sameStampedPath(resumed,resumed));
 }

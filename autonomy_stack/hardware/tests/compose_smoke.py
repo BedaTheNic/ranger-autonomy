@@ -64,6 +64,7 @@ def main():
         ack_branch = 'Driving mode: ACKERMANN' in (output/'console.log').read_text()
         if args.can_steering and args.profile == 'adaptive':
             assert ack_branch, 'CAN integration test must exercise the adaptive Ackermann controller branch'
+        assert 'PASS real NavigateToPose:' in (output/'console.log').read_text(), 'Actual navigator behavior tree was not exercised'
         raw = subprocess.check_output(compose+['ps', '-a', '--format', 'json']).decode().strip()
         rows = json.loads(raw) if raw.startswith('[') else [json.loads(line) for line in raw.splitlines()]
         statuses = {row['Service']: row['ExitCode'] for row in rows}
@@ -87,6 +88,7 @@ def main():
                        rmw=args.rmw, fastdds_builtin_transports='UDPv4',
                        steering_feedback='virtual CAN 0x271 adapter' if args.can_steering else 'synthetic joints',
                        adaptive_ackermann_branch_exercised=ack_branch,
+                       navigate_to_pose_tree_exercised=True,
                        physical_robot=False)
         (output/'summary.json').write_text(json.dumps(summary, indent=2))
         print(json.dumps(summary, indent=2))

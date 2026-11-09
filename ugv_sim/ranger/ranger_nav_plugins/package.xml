@@ -7,6 +7,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>dwb_core</depend><depend>pluginlib</depend>
   <depend>dwb_critics</depend>
+  <depend>libopencv-dev</depend>
   <depend>nav2_mppi_controller</depend>
   <depend>xtensor</depend><depend>xsimd</depend>
   <depend condition="$ROS_DISTRO != 'jazzy'">behaviortree_cpp_v3</depend>
@@ -17,6 +18,6 @@
   <depend>nav2_smac_planner</depend><depend>std_msgs</depend>
   <depend>visualization_msgs</depend>
   <test_depend>ament_cmake_gtest</test_depend>
-  <test_depend>nav2_behavior_tree</test_depend>
+  <depend>nav2_behavior_tree</depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

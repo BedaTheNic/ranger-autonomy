@@ -30,10 +30,10 @@ its own 0.640 × 0.600 m model envelope.
 
 ## Deploy on the robot
 
-Download the `jazzy-r5.2.1` deployment bundle:
+Download the `jazzy-r6` deployment bundle:
 
 ```bash
-curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r5.2.1/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
+curl -fL https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r6/ranger-hardware-deploy.tar.gz -o ranger-hardware-deploy.tar.gz
 tar -xzf ranger-hardware-deploy.tar.gz
 cd ranger-hardware
 bash robot.sh pull
@@ -42,7 +42,7 @@ bash robot.sh check
 ```
 
 The bundle includes a non-secret `.env` preset. The image is
-`ghcr.io/bedathenic/ranger-autonomy:jazzy-r5.2.1`, for the robot’s amd64 architecture.
+`ghcr.io/bedathenic/ranger-autonomy:jazzy-r6`, for the robot’s amd64 architecture.
 For a private GHCR package, first run `docker login ghcr.io -u BedaTheNic` on the robot.
 No source checkout or build is needed on the robot.
 
@@ -75,6 +75,14 @@ Inflation costs, swept-footprint collision checks and stopping-distance checks
 remain enabled. The measured CAN steering adapter publishes
 `/ranger/steering_joint_states` for adaptive navigation. The configured envelope
 has not been measured against the complete robot and its mounted equipment.
+
+`jazzy-r6` packages the segment planning and retained-path behavior tested locally
+on November 8–9, 2026. Candidate routes account for footprint clearance,
+corridor centering, forward-facing travel and scheduled mode changes. A brief
+obstruction suspends following; a second blocked check authorizes a replacement.
+When the same stamped route resumes, the controller retains its completed
+segments, pivots and gear progress. The Jazzy release tests cover the actual
+NavigateToPose behavior tree, measured CAN feedback and all three profiles.
 
 For an existing installation, preserve `.env` (including `NAV_PROFILE`), maps
 and logs, stop/disarm driving, change `AUTONOMY_IMAGE` to the new tag, then pull

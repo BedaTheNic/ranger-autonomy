@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <optional>
+#include "nav2_util/line_iterator.hpp"
 #include <vector>
 #include "geometry_msgs/msg/twist.hpp"
 #include "nav_msgs/msg/path.hpp"
@@ -21,6 +22,13 @@ inline double yaw(const geometry_msgs::msg::Pose & p)
   return std::atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z));
 }
 struct Pose2 {double x{0}, y{0}, a{0};};
+// FollowPath is canceled during an obstruction hold. On resumption Nav2
+// resends the original stamped path, including already completed pivots.
+inline bool sameStampedPath(const nav_msgs::msg::Path & prior,const nav_msgs::msg::Path & next)
+{
+  const auto & stamp=next.header.stamp;
+  return !next.poses.empty() && (stamp.sec!=0 || stamp.nanosec!=0) && next==prior;
+}
 inline Pose2 planar(const geometry_msgs::msg::Pose & p)
 {return {p.position.x,p.position.y,yaw(p)};}
 inline double distance(const Pose2 & a,const Pose2 & b)
@@ -56,7 +64,12 @@ inline std::optional<size_t> nextPivot(const std::vector<Pose2> & path,size_t be
   for(size_t i=begin;i+1<path.size();++i) {
     if(distance(path[i],path[i+1])<1e-5 && std::abs(wrap(path[i+1].a-path[i].a))>1e-4) {
       size_t end=i+1;
-      while(end+1<path.size() && distance(path[i],path[end+1])<1e-5) {++end;}
+      double sweep=wrap(path[end].a-path[i].a);
+      while(end+1<path.size() && distance(path[i],path[end+1])<1e-5) {
+        const double step=wrap(path[end+1].a-path[end].a);
+        if(sweep*step<0 || std::abs(sweep+step)>=M_PI-1e-6) {break;}
+        sweep+=step;++end;
+      }
       return end;
     }
   }
@@ -153,18 +166,46 @@ inline Pose2 integrate(const Pose2 & p,const geometry_msgs::msg::Twist & v,doubl
   return {p.x+std::cos(p.a)*bx-std::sin(p.a)*by,
     p.y+std::sin(p.a)*bx+std::cos(p.a)*by,wrap(p.a+da)};
 }
+struct BlockingCell
+{
+  double x{NAN},y{NAN};
+  int cost{-1};
+  const char * part{"outside_grid"};
+};
 inline bool poseFree(const Pose2 & p,nav2_costmap_2d::Costmap2D & map,
-  const nav2_costmap_2d::Footprint & footprint)
+  const nav2_costmap_2d::Footprint & footprint,BlockingCell * blocked=nullptr)
 {
   unsigned int x,y;
   if(!std::isfinite(p.x)||!std::isfinite(p.y)||!std::isfinite(p.a) ||
-    !map.worldToMap(p.x,p.y,x,y) || map.getCost(x,y)>=253) {return false;}
+    !map.worldToMap(p.x,p.y,x,y)) {return false;}
+  auto record=[&](unsigned mx,unsigned my,const char * part) {
+    if(blocked) {
+      map.mapToWorld(mx,my,blocked->x,blocked->y);
+      blocked->cost=map.getCost(mx,my);blocked->part=part;
+    }
+  };
+  if(map.getCost(x,y)>=253) {record(x,y,"centre");return false;}
   nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *> checker(&map);
   nav2_costmap_2d::Footprint polygon;
   nav2_costmap_2d::transformFootprint(p.x,p.y,p.a,footprint,polygon);
   if(polygon.size()<3) {return false;}
   const double cost=checker.footprintCost(polygon);
-  if(cost<0 || cost>=254) {return false;}
+  if(cost<0 || cost>=254) {
+    if(blocked) {
+      // Replay the same rasterized outline on the locked grid for diagnostics.
+      for(size_t i=0;i<polygon.size();++i) {
+        const auto & a=polygon[i];const auto & b=polygon[(i+1)%polygon.size()];
+        unsigned ax,ay,bx,by;
+        if(!map.worldToMap(a.x,a.y,ax,ay) || !map.worldToMap(b.x,b.y,bx,by)) {return false;}
+        for(nav2_util::LineIterator edge(ax,ay,bx,by);edge.isValid();edge.advance()) {
+          if(map.getCost(edge.getX(),edge.getY())>=254) {
+            record(edge.getX(),edge.getY(),"edge");return false;
+          }
+        }
+      }
+    }
+    return false;
+  }
   // The Nav2 polygon checker rasterizes edges. A small occupied or unknown
   // island can lie wholly inside the padded polygon between samples.
   unsigned min_x=x,max_x=x,min_y=y,max_y=y;
@@ -185,7 +226,7 @@ inline bool poseFree(const Pose2 & p,nav2_costmap_2d::Costmap2D & map,
         const auto & a=polygon[i];const auto & b=polygon[j];
         if((a.y>wy)!=(b.y>wy) && wx<(b.x-a.x)*(wy-a.y)/(b.y-a.y)+a.x) {inside=!inside;}
       }
-      if(inside) {return false;}
+      if(inside) {record(col,row,"interior");return false;}
     }
   }
   return true;
@@ -201,17 +242,17 @@ inline bool rotationFree(const Pose2 & p,double heading,nav2_costmap_2d::Costmap
   return true;
 }
 inline bool pathFree(const std::vector<Pose2> & path,nav2_costmap_2d::Costmap2D & map,
-  const nav2_costmap_2d::Footprint & footprint,Pose2 * invalid=nullptr)
+  const nav2_costmap_2d::Footprint & footprint,Pose2 * invalid=nullptr,size_t * invalid_index=nullptr)
 {
   if(path.empty()) {return false;}
-  if(!poseFree(path.front(),map,footprint)) {if(invalid) {*invalid=path.front();} return false;}
+  if(!poseFree(path.front(),map,footprint)) {if(invalid) {*invalid=path.front();} if(invalid_index) {*invalid_index=0;} return false;}
   for(size_t i=1;i<path.size();++i) {
     const auto & a=path[i-1];const auto & b=path[i];const double da=wrap(b.a-a.a);
     const int count=std::max({1,int(std::ceil(distance(a,b)/.025)),int(std::ceil(std::abs(da)/.025))});
     for(int j=1;j<=count;++j) {
       const double t=double(j)/count;
       Pose2 p{a.x+t*(b.x-a.x),a.y+t*(b.y-a.y),a.a+t*da};
-      if(!poseFree(p,map,footprint)) {if(invalid) {*invalid=p;} return false;}
+      if(!poseFree(p,map,footprint)) {if(invalid) {*invalid=p;} if(invalid_index) {*invalid_index=i;} return false;}
     }
   }
   return true;

@@ -41,13 +41,28 @@ public:
   void activate() override
   {ack_->activate();holo_->activate();mode_pub_->on_activate();decision_pub_->on_activate();marker_pub_->on_activate();}
   void deactivate() override
-  {ack_->deactivate();holo_->deactivate();mode_pub_->on_deactivate();decision_pub_->on_deactivate();marker_pub_->on_deactivate();}
+  {reference_.poses.clear();ack_->deactivate();holo_->deactivate();mode_pub_->on_deactivate();decision_pub_->on_deactivate();marker_pub_->on_deactivate();}
   void cleanup() override {ack_->cleanup();holo_->cleanup();mode_pub_.reset();decision_pub_.reset();marker_pub_.reset();}
   void setPlan(const nav_msgs::msg::Path & path) override
   {
     if(path.poses.empty()) {throw std::runtime_error("Empty adaptive reference");}
-    reference_=path;cursor_=0;handoff_=0;loaded_mode_=0;loaded_end_=0;
-    strict_ackermann_=strictAckermannReference(points(path),limits_);
+    if(sameStampedPath(reference_,path)) {
+      RCLCPP_INFO(node_.lock()->get_logger(),"Resuming retained path at index %zu of %zu",cursor_,path.poses.size());
+      return;
+    }
+    std::optional<bool> entering_car;
+    if(!reference_.poses.empty() && reference_.header.frame_id==path.header.frame_id) {
+      const auto previous=planar(reference_.poses.back().pose),next=planar(path.poses.back().pose);
+      if(distance(previous,next)<1e-5 && std::abs(wrap(previous.a-next.a))<1e-5) {
+        if(published_mode_=="ACKERMANN") {entering_car=true;}
+        else if(published_mode_.rfind("HOLONOMIC",0)==0) {entering_car=false;}
+        else if(mode_!=0) {entering_car=(mode_==1);}
+      }
+    }
+    reference_=path;terminal_alignment_=false;cursor_=0;handoff_=0;loaded_mode_=0;loaded_end_=0;
+    geometry_=points(path);
+    plan_decision_=decide(geometry_,limits_,geometry_.front().a,entering_car);
+    strict_ackermann_=strictAckermannReference(geometry_,limits_);
     recovery_active_=false;recovery_heading_.reset();
     reversal_target_.reset();
     // Keep the current driving mode across a necessary global replan.
@@ -67,7 +82,7 @@ public:
       auto transform=tf_->lookupTransform(reference_.header.frame_id,pose.header.frame_id,tf2::TimePointZero);
       tf2::doTransform(pose,global_pose,transform);
     }
-    auto all=points(reference_);const auto robot=planar(global_pose.pose);
+    const auto & all=geometry_;const auto robot=planar(global_pose.pose);
     auto pivot=nextPivot(all,cursor_);
     while(pivot && distance(robot,all[*pivot])<.04 && std::abs(wrap(robot.a-all[*pivot].a))<.08) {
       cursor_=*pivot;pivot=nextPivot(all,cursor_);
@@ -85,17 +100,31 @@ public:
       if(command) {return *command;}
     }
     const size_t begin=std::min(cursor_,all.size()-2);
-    std::vector<Pose2> remaining(all.begin()+begin,all.end());
-    auto decision=decide(remaining,limits_,robot.a,mode_==1,strict_ackermann_);
-    size_t offset=handoff_>begin?std::min(handoff_-begin,decision.modes.size()-1):0;
-    bool wanted_ack=decision.modes[offset];
-    if(finalHolonomicApproach(all,projection,robot,limits_)) {wanted_ack=false;}
-    size_t end=offset;
+    const auto & decision=plan_decision_;
+    size_t active=std::max(begin,handoff_);
+    bool wanted_ack=decision.modes[active];
+    // Finish an aligned straight with the same controller. Latch only a
+    // genuinely necessary terminal correction so noisy pose updates cannot
+    // alternate the controllers near the goal.
+    if(wanted_ack && finalHolonomicApproach(all,projection,robot,limits_)) {
+      geometry_msgs::msg::Pose tolerance;
+      geometry_msgs::msg::Twist speed_tolerance;
+      if(checker && checker->getTolerances(tolerance,speed_tolerance)) {
+        const double remaining=distance(robot,all.back());
+        const double yaw_reachable=std::abs(yaw(tolerance))+remaining/limits_.radius;
+        if(std::abs(wrap(robot.a-all.back().a))>yaw_reachable) {terminal_alignment_=true;}
+      }
+    }
+    if(terminal_alignment_) {wanted_ack=false;}
+    // Hand over before MPPI brakes for a mandatory pivot or crab section.
+    size_t end=active;
     while(end<decision.modes.size() && decision.modes[end]==wanted_ack) {++end;}
-    // Hand over before MPPI brakes for the end of its Ackermann subpath.
-    if(wanted_ack && end<decision.modes.size() && distance(robot,remaining[end])<.30) {
-      handoff_=begin+end;offset=end;wanted_ack=false;
-      while(end<decision.modes.size() && !decision.modes[end]) {++end;}
+    double distance_to_handoff=distance(robot,projection.pose);
+    for(size_t i=begin; wanted_ack && end<decision.modes.size() && i<end && distance_to_handoff<.30; ++i) {
+      distance_to_handoff+=distance(i==begin?projection.pose:all[i],all[i+1]);
+    }
+    if(wanted_ack && end<decision.modes.size() && distance_to_handoff<.30 && (!pivot || end<=*pivot)) {
+      handoff_=end;active=end;wanted_ack=false;
     }
     const double now=clock_->now().seconds();
     if (reversal_target_) {
@@ -105,10 +134,10 @@ public:
     if(wanted_ack && mode_==2 && now-mode_stamp_<minimum_mode_time_) {wanted_ack=false;}
     if(wanted_ack && mode_==2 && projection.error>.06) {wanted_ack=false;}
     if(wanted_ack && now<alignment_blocked_until_) {wanted_ack=false;}
-    auto current_edge=edge(remaining,offset,limits_);feasible_=current_edge.ackermann;
-    if(wanted_ack && mode_!=1 && std::abs(wrap(remaining[offset].a-robot.a))>.10) {
+    auto current_edge=edge(all,active,limits_);feasible_=current_edge.ackermann;
+    if(wanted_ack && mode_!=1 && std::abs(wrap(all[active].a-robot.a))>.10) {
       auto pivot=stop;
-      pivot.twist.angular.z=std::clamp(1.3*wrap(remaining[offset].a-robot.a),-.22,.22);
+      pivot.twist.angular.z=std::clamp(1.3*wrap(all[active].a-robot.a),-.22,.22);
       pivot.twist.angular.z*=speed_scale_;
       // Translation must stop before changing to the pivot steering pattern.
       if(std::hypot(speed.linear.x,speed.linear.y)>.025) {
@@ -117,7 +146,7 @@ public:
       auto * grid=map_->getCostmap();
       std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*grid->getMutex());
       const auto local_robot=planar(pose.pose);
-      const double local_heading=local_robot.a+wrap(remaining[offset].a-robot.a);
+      const double local_heading=local_robot.a+wrap(all[active].a-robot.a);
       if(rotationFree(local_robot,local_heading,*grid,map_->getRobotFootprint())) {
         publish("HOLONOMIC_ALIGN",decision,current_edge.radius,now);return pivot;
       }
@@ -139,8 +168,17 @@ public:
     size_t terminal=pivot?*pivot:reference_.poses.size()-1;
     if(mode_==1) {
       terminal=begin;
-      while(terminal+1<reference_.poses.size() && terminal-begin<decision.modes.size() &&
-        decision.modes[terminal-begin]) {++terminal;}
+      while(terminal+1<reference_.poses.size() && decision.modes[terminal]) {++terminal;}
+    }
+    if(mode_==2 && !decision.modes[active]) {
+      size_t boundary=active+1;
+      while(boundary<terminal && !decision.modes[boundary]) {++boundary;}
+      // A small overlapping lookahead lets DWB hand over while moving.
+      double preview=0;
+      while(boundary<terminal && preview<.25 && decision.modes[boundary]) {
+        preview+=distance(all[boundary],all[boundary+1]);++boundary;
+      }
+      terminal=std::min(terminal,boundary);
     }
     if(loaded_mode_!=mode_ || loaded_end_!=terminal) {
       nav_msgs::msg::Path segment;segment.header=reference_.header;
@@ -167,13 +205,18 @@ public:
       auto alignment = alignReversal(pose, speed, checker, decision, now);
       return alignment.value_or(stop);
     }
+    catch(const AckermannTrackingError &) {
+      if(!finalHolonomicApproach(all,projection,robot,limits_)) {throw;}
+      terminal_alignment_=true;
+      return stop;
+    }
     catch(const std::runtime_error & error) {
       if(mode_!=1 || std::string(error.what())!="Optimizer fail to compute path") {throw;}
       // Only hand a monotonic part to the holonomic controller: never jump over
       // a forward/reverse cusp by following an overlapping XY branch.
       size_t finish=begin+1;double length=distance(all[begin],all[finish]);
       const int direction=edge(all,begin,limits_).direction;
-      while(finish+1<all.size() && length<.8 && edge(all,finish,limits_).direction==direction) {
+      while(finish<terminal && length<.8 && edge(all,finish,limits_).direction==direction) {
         length+=distance(all[finish],all[finish+1]);++finish;
       }
       recovery_path_.header=reference_.header;
@@ -249,7 +292,7 @@ private:
         recovery_active_=false;throw std::runtime_error("No collision-free holonomic rejoin maneuver");
       }
     }
-    Decision decision;decision.modes.assign(reference_.poses.size()-cursor_-1,false);
+    const auto & decision=plan_decision_;
     publish(turn?"HOLONOMIC_ROTATE":"HOLONOMIC_RECOVERY",decision,INFINITY,now);
     return command;
   }
@@ -264,6 +307,12 @@ private:
     if(std::isfinite(d.mixed.seconds)) {json<<d.mixed.seconds;} else {json<<"null";}
     json<<",\"holonomic_eta\":";
     if(std::isfinite(d.holonomic.seconds)) {json<<d.holonomic.seconds;} else {json<<"null";}
+    if(cursor_<d.modes.size()) {
+      const size_t end=segmentEnd(geometry_,d.modes,cursor_);
+      json<<",\"scheduled_mode\":\""<<(d.modes[cursor_]?"ackermann":"holonomic")
+          <<"\",\"segment_end_index\":"<<end<<",\"segment_goal\":["<<geometry_[end].x
+          <<","<<geometry_[end].y<<","<<geometry_[end].a<<"]";
+    }
     json<<",\"transitions\":"<<switches_<<"}";
     message.data=json.str();decision_pub_->publish(message);
     visualization_msgs::msg::MarkerArray markers;
@@ -276,9 +325,9 @@ private:
     visualization_msgs::msg::Marker line;
     line.header=reference_.header;line.header.stamp=clock_->now();line.ns="mode_path";line.id=1;
     line.type=line.LINE_LIST;line.action=line.ADD;line.pose.orientation.w=1;line.scale.x=.035;
-    const auto p=points(reference_);const auto & modes=d.modes;
+    const auto & p=geometry_;const auto & modes=d.modes;
     for(size_t i=cursor_;i+1<p.size();++i) {
-      std_msgs::msg::ColorRGBA color;color.a=.8;color.r=modes[i-cursor_]?.1:1.;color.g=modes[i-cursor_]?.85:.45;color.b=.45;
+      std_msgs::msg::ColorRGBA color;color.a=.8;color.r=modes[i]?.1:1.;color.g=modes[i]?.85:.45;color.b=.45;
       for(size_t j=i;j<i+2;++j) {
         geometry_msgs::msg::Point point;point.x=p[j].x;point.y=p[j].y;point.z=.06;
         line.points.push_back(point);line.colors.push_back(color);
@@ -296,6 +345,9 @@ private:
   rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
   std::string name_,published_mode_;
   nav_msgs::msg::Path reference_;
+  std::vector<Pose2> geometry_;
+  Decision plan_decision_;
+  bool terminal_alignment_{false};
   MotionLimits limits_;
   size_t cursor_{0},handoff_{0},loaded_end_{0};
   int mode_{0},loaded_mode_{0};unsigned switches_{0};bool feasible_{false},strict_ackermann_{false};

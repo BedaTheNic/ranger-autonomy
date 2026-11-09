@@ -61,57 +61,8 @@ inline HybridChoice selectHybrid(const std::vector<Pose2> & raw, const std::vect
     HybridChoice::raw : HybridChoice::smoothed;
 }
 
-inline double routeEta(const std::vector<Pose2> & path, const MotionLimits & limits)
-{
-  auto choice = decide(path, limits, path.front().a);
-  return std::min(choice.holonomic.seconds, choice.mixed.seconds);
-}
-
-// For a straight crab leg compare an explicitly aligned forward/reverse leg
-// with the same XY trace. Retain endpoint orientations and all original pivots.
-inline unsigned alignStraights(std::vector<Pose2> & path, Grid & grid,
-  const Footprint & footprint, const MotionLimits & limits, bool compare_clearance=true)
-{
-  unsigned accepted = 0;
-  for (size_t first = 0; first + 1 < path.size();) {
-    const auto origin = path[first];
-    const auto next = path[first+1];
-    if (distance(origin,next)<1e-6 || std::abs(wrap(next.a-origin.a))>1e-6) {
-      ++first; continue;
-    }
-    const double bearing = std::atan2(next.y-origin.y,next.x-origin.x);
-    size_t end = first+1;
-    while (end+1 < path.size()) {
-      const auto & a=path[end]; const auto & b=path[end+1];
-      if (distance(a,b)<1e-6 || std::abs(wrap(b.a-origin.a))>1e-6 ||
-        std::abs(wrap(std::atan2(b.y-a.y,b.x-a.x)-bearing))>1e-5) {break;}
-      ++end;
-    }
-    const double heading = std::cos(bearing-origin.a)>=0 ? bearing : wrap(bearing+M_PI);
-    if (distance(origin,path[end])>=.65 && std::abs(wrap(heading-origin.a))>.025) {
-      auto aligned=path;
-      for(size_t i=first;i<=end;++i) {aligned[i].a=heading;}
-      aligned.insert(aligned.begin()+end+1,path[end]);
-      aligned.insert(aligned.begin()+first,origin);
-      const std::vector<Pose2> leg(aligned.begin()+first,aligned.begin()+end+3);
-      if (pathFree(leg,grid,footprint)) {
-        const std::vector<Pose2> original(path.begin()+first,path.begin()+end+1);
-        const bool clearance_ok=!compare_clearance ||
-          clearanceBands(leg,grid,footprint)>=clearanceBands(original,grid,footprint);
-        // Same local ETA tie window as the mode scheduler. Avoid gratuitous
-        // pivots on a diagonal which the base can execute faster as crab.
-        if (clearance_ok && routeEta(aligned,limits)<=routeEta(path,limits)+.25) {
-          path=std::move(aligned); end+=2; ++accepted;
-        }
-      }
-    }
-    first=end;
-  }
-  return accepted;
-}
-
 inline bool retainedPathFree(const std::vector<Pose2> & path, const Pose2 & robot,
-  size_t & cursor, Grid & grid, const Footprint & footprint, Pose2 * invalid=nullptr)
+  size_t & cursor, Grid & grid, const Footprint & footprint, Pose2 * invalid=nullptr,size_t * invalid_index=nullptr)
 {
   if(path.empty()) {return false;}
   // Bounded forward search keeps an overlapping return branch from skipping
@@ -120,6 +71,9 @@ inline bool retainedPathFree(const std::vector<Pose2> & path, const Pose2 & robo
   cursor=p.index;
   std::vector<Pose2> remaining{p.pose};
   remaining.insert(remaining.end(),path.begin()+p.index+1,path.end());
-  return pathFree(remaining,grid,footprint,invalid);
+  size_t relative=0;
+  const bool clear=pathFree(remaining,grid,footprint,invalid,&relative);
+  if(!clear && invalid_index) {*invalid_index=p.index+relative;}
+  return clear;
 }
 }

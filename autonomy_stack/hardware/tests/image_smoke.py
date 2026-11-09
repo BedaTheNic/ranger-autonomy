@@ -17,7 +17,7 @@ from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import PointCloud2, PointField, JointState
 from tf2_ros import StaticTransformBroadcaster
 from lifecycle_msgs.srv import GetState
-from nav2_msgs.action import ComputePathToPose, FollowPath
+from nav2_msgs.action import ComputePathToPose, FollowPath, NavigateToPose
 from nav2_msgs.srv import IsPathValid
 from std_srvs.srv import Trigger
 
@@ -175,6 +175,32 @@ try:
  assert future.done() and future.result().goals_canceling,'FollowPath cancellation failed'
  deadline=time.monotonic()+3
  while time.monotonic()<deadline:rclpy.spin_once(node,timeout_sec=.1)
+ # Exercise the actual navigator and its deployed XML/plugins, including the
+ # retained-path validation service. Direct FollowPath alone bypasses this tree.
+ navigate=ActionClient(node,NavigateToPose,'/navigate_to_pose')
+ assert navigate.wait_for_server(timeout_sec=5)
+ request=NavigateToPose.Goal();request.pose=goal.goal
+ candidate_commands.clear();guard_commands.clear()
+ future=navigate.send_goal_async(request);rclpy.spin_until_future_complete(node,future,timeout_sec=5)
+ navigator=future.result();assert navigator and navigator.accepted,'NavigateToPose was rejected'
+ deadline=time.monotonic()+12
+ while time.monotonic()<deadline:
+  rclpy.spin_once(node,timeout_sec=.05)
+  if any(moving(v) for _,v in candidate_commands) and any(moving(v) for _,v in guard_commands):break
+ assert any(moving(v) for _,v in candidate_commands),'Navigator tree did not reach the controller'
+ assert any(moving(v) for _,v in guard_commands),'Navigator tree did not produce guarded motion'
+ outcome=navigator.get_result_async()
+ # Keep the real tree running across its 1 Hz retained-path checks. The fixed
+ # synthetic base cannot reach the goal; a valid route must keep following.
+ deadline=time.monotonic()+2.2
+ while time.monotonic()<deadline:rclpy.spin_once(node,timeout_sec=.05)
+ assert not outcome.done(),'Navigator terminated during valid retained-path checks'
+ assert guard_commands and time.monotonic()-guard_commands[-1][0]<.5 and moving(guard_commands[-1][1]),'Valid retained-path checks interrupted guarded motion'
+ future=navigator.cancel_goal_async();rclpy.spin_until_future_complete(node,future,timeout_sec=5)
+ assert future.done() and future.result().goals_canceling,'NavigateToPose cancellation failed'
+ rclpy.spin_until_future_complete(node,outcome,timeout_sec=5)
+ assert outcome.done() and outcome.result().status==5,'NavigateToPose did not finish canceled'
+ print('PASS real NavigateToPose: deployed behavior tree, retained-path service, guarded motion and cancellation',flush=True)
  print('PASS',profile,': scan conversion, Nav2 activation, planning, retained-path validity, controller/guard wiring, stale-scan stop and cancellation; poses=',len(response.result.path.poses),flush=True)
 finally:
  from nav2_msgs.srv import ManageLifecycleNodes

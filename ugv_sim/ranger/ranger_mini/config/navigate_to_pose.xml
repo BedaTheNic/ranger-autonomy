@@ -6,35 +6,31 @@
         <PipelineSequence name="FollowRetainedPath">
           <!-- Check at 1 Hz; compute only when the retained path is unusable. -->
           <RateController hz="1.0">
-            <RecoveryNode number_of_retries="1" name="ValidateOrComputePath">
-              <Sequence>
-                <Fallback name="ReuseOrPlan">
-                  <ReactiveSequence>
-                    <PathGoalUnchanged/>
-                    <IsPathValid path="{path}"/>
-                  </ReactiveSequence>
-                  <Sequence>
-                    <RememberPathGoal/>
-                    <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
-                  </Sequence>
-                </Fallback>
-              </Sequence>
-              <ClearEntireCostmap service_name="global_costmap/clear_entirely_global_costmap"/>
-            </RecoveryNode>
-          </RateController>
-          <FollowPath path="{path}" controller_id="FollowPath" goal_checker_id="goal_checker"/>
-        </PipelineSequence>
-        <Sequence name="InvalidateUnfollowablePath">
-          <ClearNavigationPath path="{path}"/>
-          <ReactiveFallback>
-            <GoalUpdated/>
             <Sequence>
-              <ClearEntireCostmap service_name="local_costmap/clear_entirely_local_costmap"/>
-              <ClearEntireCostmap service_name="global_costmap/clear_entirely_global_costmap"/>
-              <Wait wait_duration="3"/>
+              <Fallback name="CheckMapForCurrentGoal">
+                <Inverter><PathGoalUnchanged path="{path}"/></Inverter>
+                <ReadPathValidity path="{path}" valid="{retained_valid}"/>
+              </Fallback>
+              <Fallback name="ReuseOrPlan">
+                <ReactiveSequence>
+                  <PathGoalUnchanged path="{path}"/>
+                  <KeepCheckedPath valid="{retained_valid}" path="{path}"/>
+                </ReactiveSequence>
+                <Sequence>
+                  <RememberPathGoal/>
+                  <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+                </Sequence>
+              </Fallback>
             </Sequence>
-          </ReactiveFallback>
-        </Sequence>
+          </RateController>
+          <FollowCheckedPath path="{path}">
+            <FollowPath path="{path}" controller_id="FollowPath" goal_checker_id="goal_checker"/>
+          </FollowCheckedPath>
+        </PipelineSequence>
+        <ReactiveFallback name="RetryRetainedPath">
+          <GoalUpdated/>
+          <Wait wait_duration="1"/>
+        </ReactiveFallback>
       </RecoveryNode>
     </Sequence>
   </BehaviorTree>

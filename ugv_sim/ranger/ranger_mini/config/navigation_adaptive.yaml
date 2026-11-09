@@ -13,6 +13,13 @@ planner_server:
       lattice_search_padding: 0.0
       planning_padding: 0.0
       goal_connection_distance: 0.25
+      # Soft travel costs. Width is measured wall to wall in metres.
+      obstacle_weight: 1.5
+      unobserved_obstacle_depth: 0.20  # Soft detour cost behind newly observed surfaces (m).
+      segment_time_slack: 0.10
+      corridor_width: 1.6
+      centering_weight: 2.0
+      front_facing_weight: 1.0
       Ackermann:
         plugin: ranger_nav_plugins::ValidatedHybrid
         tolerance: 0.15
@@ -50,14 +57,14 @@ planner_server:
         reverse_penalty: 1.0
         change_penalty: 0.3
         non_straight_penalty: 1.1
-        cost_penalty: 0.0
+        cost_penalty: 2.0
         retrospective_penalty: 0.0
         analytic_expansion_ratio: 3.5
         analytic_expansion_max_length: 0.0
         lookup_table_size: 0.05
         allow_reverse_expansion: false
         # A stationary chassis turn consumes steering and rotation time.
-        # Keep distance first when comparing the returned feasible routes.
+        # The adaptive planner scores the resulting feasible segment schedules.
         rotation_penalty: 4.0
     expected_planner_frequency: 0.4
 controller_server:

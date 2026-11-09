@@ -24,6 +24,7 @@ struct Scenario
   int planner_failures = 0;
   int planner_running_ticks = 0;
   bool valid = true;
+  bool validity_unavailable = false;
   bool controller_failure = false;
   bool prune = false;
 };
@@ -36,7 +37,7 @@ public:
   : BT::ActionNodeBase(name, config), kind_(kind), s_(scenario) {}
   static BT::PortsList providedPorts()
   {
-    return {BT::BidirectionalPort<nav_msgs::msg::Path>("path"),
+    return {BT::OutputPort<bool>("valid"), BT::BidirectionalPort<nav_msgs::msg::Path>("path"),
       BT::InputPort<geometry_msgs::msg::PoseStamped>("goal"),
       BT::InputPort<Goals>("goals"), BT::InputPort<Goals>("input_goals"),
       BT::OutputPort<Goals>("output_goals"), BT::InputPort<double>("radius"),
@@ -68,10 +69,11 @@ public:
       path.poses.resize(2);
       setOutput("path", path);
       s_.valid = true;
-    } else if (kind_ == "IsPathValid") {
+    } else if (kind_ == "MockReadPathValidity") {
       ++s_.checks;
-      return s_.valid && !getInput<nav_msgs::msg::Path>("path").value().poses.empty() ?
-             Status::SUCCESS : Status::FAILURE;
+      if(s_.validity_unavailable) {s_.validity_unavailable=false;return Status::FAILURE;}
+      setOutput("valid",s_.valid);
+      return Status::SUCCESS;
     } else if (kind_ == "FollowPath") {
       ++s_.follows;
       if (s_.controller_failure) {s_.controller_failure = false; return Status::FAILURE;}
@@ -106,7 +108,7 @@ protected:
       factory.registerFromPlugin(std::string(NAV2_BT_LIBRARY_DIR) + "/libnav2_" + lib + "_bt_node.so");
     }
     for (const std::string kind : {"ComputePathToPose", "ComputePathThroughPoses",
-      "IsPathValid", "FollowPath", "GoalUpdated", "ClearEntireCostmap", "Wait", "RemovePassedGoals"})
+      "MockReadPathValidity", "FollowPath", "GoalUpdated", "ClearEntireCostmap", "Wait", "RemovePassedGoals"})
     {
       factory.registerBuilder<MockAction>(kind, [this, kind](const std::string & name,
         const BT::NodeConfiguration & config) {
@@ -117,6 +119,7 @@ protected:
     ASSERT_TRUE(file.good());
     std::stringstream xml; xml << file.rdbuf();
     auto text = xml.str();
+    text.replace(text.find("<ReadPathValidity "),17,"<MockReadPathValidity ");
 #ifdef RANGER_NAV2_JAZZY
     text.replace(text.find("<root "), 6, "<root BTCPP_format=\"4\" ");
 #endif
@@ -157,13 +160,27 @@ TEST_P(PathPolicy, ChangedGoalAndBlockedPathEachRequestOneNewPlan)
   s.valid = false;
   ticks(); EXPECT_EQ(s.plans, 3);
 }
-TEST_P(PathPolicy, ControllerFailureForcesReplanEvenWhenPathIsCollisionFree)
+TEST_P(PathPolicy, OneBlockedCheckHaltsFollowingAndResumesWithoutAReplacement)
+{
+  ticks();
+  const auto before=s.follows;
+  s.valid=false;
+  ticks(1);
+  EXPECT_EQ(s.plans,1);
+  EXPECT_EQ(s.follows,before);
+  s.valid=true;
+  ticks(2);
+  EXPECT_GT(s.follows,before);
+  EXPECT_EQ(s.plans,1);
+}
+
+TEST_P(PathPolicy, ControllerFailureRetriesTheSameCollisionFreePlan)
 {
   ticks();
   s.controller_failure = true;
   ticks();
-  EXPECT_EQ(s.plans, 2);
-  EXPECT_EQ(s.clears, 2);
+  EXPECT_EQ(s.plans, 1);
+  EXPECT_EQ(s.clears, 0);
 }
 TEST_P(PathPolicy, GoalChangedDuringPlanningIsNotCachedAsTheOldPlansGoal)
 {
@@ -182,10 +199,15 @@ TEST_P(PathPolicy, NewRequestToSameGoalDoesNotReusePreviousPath)
   tree.haltTree();
   ticks(); EXPECT_EQ(s.plans, 2);
 }
-TEST_P(PathPolicy, PlannerFailureRetriesAfterClearingCostmap)
+TEST_P(PathPolicy, FailedInitialPlanRetriesWithoutClearingObservations)
 {
   s.planner_failures = 1;
-  ticks(); EXPECT_EQ(s.plans, 2); EXPECT_EQ(s.clears, 1);
+  ticks(); EXPECT_EQ(s.plans, 2); EXPECT_EQ(s.clears, 0);
+}
+TEST_P(PathPolicy, UnavailableValidityRetriesWithoutReplacingThePath)
+{
+  ticks();s.validity_unavailable=true;
+  ticks(10);EXPECT_EQ(s.plans,1);EXPECT_EQ(s.clears,0);
 }
 TEST_P(PathPolicy, PruningPassedWaypointsDoesNotReplanButNewWaypointsDo)
 {

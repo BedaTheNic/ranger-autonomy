@@ -1,0 +1,31 @@
+{
+  "captured_local_date": "2026-11-09",
+  "files_sha256": {
+    "ugv_sim/ranger/ranger_nav_plugins/package.xml": "31a273f3997ffd8362a0e5d5d83e89a0773f5dee99b0ecd87781438d5522ab9d",
+    "ugv_sim/ranger/ranger_nav_plugins/CMakeLists.txt": "57d3c0ef54ef4ee087913cd75d35e0c1071e6ea5e12ef0cc9ba20c4fd867229b",
+    "ugv_sim/ranger/ranger_nav_plugins/test/test_mode_policy.cpp": "7abcf5c3e30d34d3afa7beae5d6a7923256387407c9b14aa36a3106dc60f1201",
+    "ugv_sim/ranger/ranger_nav_plugins/test/test_holonomic_path.cpp": "6190487071f2f5c20b1105726d52bd775f68417d6de71a01856049db2b676aca",
+    "ugv_sim/ranger/ranger_nav_plugins/test/test_path_cache_bt.cpp": "8be215fcc2ff972f328c57085eb9110370050a7075ebe7c7d10cec9289fa7105",
+    "ugv_sim/ranger/ranger_nav_plugins/src/segment_route.hpp": "9eec838f9ceb53e610e2df4e9a5473b612eee7dcf77918d0f6d67c7f52e4c907",
+    "ugv_sim/ranger/ranger_nav_plugins/src/path_cache_bt.cpp": "2998d7f16cfc989c70f2a2bc20d2a775a0cb46530ea570c0434ea9882dcf3d30",
+    "ugv_sim/ranger/ranger_nav_plugins/src/progress_dwb_controller.cpp": "c401d60725b5696406426ba2b7cc844a6a69beaf77e6a03db3141872c42bfbd1",
+    "ugv_sim/ranger/ranger_nav_plugins/src/adaptive_controller.cpp": "d90810a97d676c9aed9c3860b52e0bf433e61f1f2fd2fea8b99e596535b747fe",
+    "ugv_sim/ranger/ranger_nav_plugins/src/route_quality.hpp": "481e3b863e1dcd55d9d8277dc087df10fd78d8a8145d5ecf93e4bc50ea99b4b1",
+    "ugv_sim/ranger/ranger_nav_plugins/src/mode_policy.hpp": "e716d44b249cc90e9f56e60a25630a867f00589459cf96a23724bc578e88deb3",
+    "ugv_sim/ranger/ranger_nav_plugins/src/adaptive_planner.cpp": "40918f3a618ee68b8a1314a09b90adfb9951c4ab1a0b1bc8a92494e5e62a81d3",
+    "ugv_sim/ranger/ranger_nav_plugins/src/retained_path_service.hpp": "ab36ca7e0136c94ce67d7c15035a605e98f807bf484c2dc0a4cd8a4eea457c2a",
+    "ugv_sim/ranger/ranger_nav_plugins/src/navigation_geometry.hpp": "ee7b3bc842af634fc353b2f3b4185f91ae24b8d469810cf2c64f59f9ad6a4ea8",
+    "ugv_sim/ranger/ranger_nav_plugins/src/ackermann_controller.cpp": "01e6759672460dcacfec20b3bdd91dbd096a65ffd677a4f5ec175c28e8d4dd47",
+    "ugv_sim/ranger/ranger_nav_plugins/src/clearance_route.hpp": "e3349c46bb255a00607eb7c50993f71062194f18f14b7d9103ab7c189e223281",
+    "ugv_sim/ranger/ranger_mini/config/navigation_adaptive.yaml": "634f7092030e1abafdbcc84c1c06d93d8a316a181dac6a9e6edda5de6104150a",
+    "ugv_sim/ranger/ranger_mini/config/navigate_to_pose.xml": "f956e6a3c1933d319578ce01e6137c09bd3a5f8017ba33cfd80fb363b7a95d24",
+    "ugv_sim/ranger/ranger_mini/config/navigate_through_poses.xml": "eed948a007c5673295124ba35b0798cc585075458db334cfc429d0a4fd7dbc32"
+  },
+  "local_simulation_report": "ranger_navigation_startup/validation/larics-replans-20261109/REPORT.md",
+  "local_simulation_results": [
+    "2026-11-09_13-13-52",
+    "2026-11-09_13-17-51",
+    "2026-11-09_13-20-42"
+  ],
+  "physical_robot_test": false
+}

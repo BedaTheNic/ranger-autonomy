@@ -49,7 +49,7 @@ TEST(ModePolicy, ShortAckermannIslandsDoNotCauseChatter)
 {
   MotionLimits l;
   std::vector<Pose2> p{{0,0,0},{0,1,0},{.1,1,0},{.2,1,0},{.2,2,0}};
-  auto modes=schedule(p,l);
+  auto modes=decide(p,l,0).modes;
   EXPECT_TRUE(std::none_of(modes.begin(),modes.end(),[](bool v){return v;}));
 }
 TEST(ModePolicy, HolonomicETAChargesIntermediateBodyRotation)
@@ -60,14 +60,6 @@ TEST(ModePolicy, HolonomicETAChargesIntermediateBodyRotation)
   const auto base=estimate(straight,{false,false},l,0);
   const auto turn=estimate(rotating,{false,false},l,0);
   EXPECT_GT(turn.seconds,base.seconds+5);
-}
-TEST(ModePolicy, ShrinkingAnActiveSegmentDoesNotTriggerEarlyHandoff)
-{
-  MotionLimits l;
-  std::vector<Pose2> p{{0,0,0},{.2,0,0},{.4,0,0},{.4,1,0}};
-  EXPECT_FALSE(schedule(p,l)[0]);
-  EXPECT_TRUE(schedule(p,l,true)[0]);
-  EXPECT_FALSE(schedule(p,l,true).back());
 }
 TEST(ModePolicy, CarReferenceKeepsDirectionSequenceAtACusp)
 {
@@ -101,4 +93,35 @@ TEST(ModePolicy, TerminalHandoffDoesNotSkipPivotOrReversal)
   const Pose2 robot{0,0,0};const Projection p{0,0,0,robot};
   EXPECT_FALSE(finalHolonomicApproach({robot,{.1,0,0},{.1,0,M_PI_2}},p,robot,{}));
   EXPECT_FALSE(finalHolonomicApproach({robot,{.1,0,0},{.05,0,0}},p,robot,{}));
+}
+
+TEST(ModePolicy, CrabBetweenStraightsStaysWithOneController)
+{
+  MotionLimits limits;
+  std::vector<Pose2> path{{0,0,0},{-1.9,0,0},{-2,0,0},{-2,1,0},{0,1,0}};
+  auto d=decide(path,limits,0);
+  ASSERT_EQ(d.modes.size(),4u);
+  EXPECT_FALSE(d.modes[0]);
+  EXPECT_FALSE(d.modes[1]);
+  EXPECT_FALSE(d.modes[2]);
+  EXPECT_FALSE(d.modes[3]);
+  EXPECT_EQ(d.mixed.switches,0u);
+  limits.lateral=.05;
+  EXPECT_FALSE(decide(path,limits,0).modes[0]);
+}
+
+TEST(ModePolicy, PivotDoesNotCountAsTwoControllerHandoffs)
+{
+  std::vector<Pose2> path{{0,0,0},{1,0,0},{1,0,M_PI_2},{1,1,M_PI_2}};
+  EXPECT_EQ(estimate(path,{true,false,true},{},0).switches,2u);
+  EXPECT_EQ(decide(path,{},0).mixed.switches,0u);
+}
+
+TEST(ModePolicy, ReplacementOfForwardStraightKeepsEitherActiveController)
+{
+  const std::vector<Pose2> straight{{0.,0.,0.},{2.,0.,0.}};
+  EXPECT_TRUE(decide(straight,{},0.,true).modes.front());
+  EXPECT_FALSE(decide(straight,{},0.,false).modes.front());
+  const std::vector<Pose2> sideways{{0.,0.,0.},{0.,2.,0.}};
+  EXPECT_FALSE(decide(sideways,{},0.,true).modes.front());
 }

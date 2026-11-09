@@ -58,22 +58,6 @@ inline Edge edge(const std::vector<Pose2> & path,size_t i,const MotionLimits & l
   e.ackermann=slip<slip_tolerance && e.radius>=limits.radius-.02;
   return e;
 }
-inline std::vector<bool> schedule(const std::vector<Pose2> & path,const MotionLimits & limits,
-  bool continuing_ackermann=false)
-{
-  std::vector<bool> modes;
-  for(size_t i=0;i+1<path.size();++i) {modes.push_back(edge(path,i,limits).ackermann);}
-  for(size_t i=0;i<modes.size();) {
-    size_t end=i;double length=0;
-    while(end<modes.size() && modes[end]==modes[i]) {length+=distance(path[end],path[end+1]);++end;}
-    if(modes[i] && length<.65 && (i!=0 || end!=modes.size()) &&
-      !(continuing_ackermann && i==0)) {
-      for(size_t j=i;j<end;++j) {modes[j]=false;}
-    }
-    i=end;
-  }
-  return modes;
-}
 // Finish a short, monotonic terminal section holonomically so yaw alignment
 // does not drive an Ackermann arc away from an already reached goal position.
 inline bool finalHolonomicApproach(const std::vector<Pose2> & path,
@@ -103,7 +87,7 @@ inline Estimate estimate(const std::vector<Pose2> & path,const std::vector<bool>
     auto e=edge(path,i,l);
     const bool ack=modes[i];
     if(ack && !e.ackermann) {out.seconds=INFINITY;return out;}
-    if(started && previous!=ack) {++out.switches;}
+    if(i && modes[i-1]!=ack) {++out.switches;}
     if(e.length<1e-5) {
       double turn=std::abs(wrap(path[i+1].a-body));
       if(turn>1e-4) {out.seconds+=turn/l.angular;body=path[i+1].a;}
@@ -139,8 +123,24 @@ struct Decision
 {
   std::vector<bool> modes;
   Estimate mixed,holonomic;
-  bool use_mixed{false};
 };
+// Consecutive samples share a segment up to a mode change, pivot, corner
+// or reversal. The result is the pose index of the segment goal.
+inline size_t segmentEnd(const std::vector<Pose2> & path,const std::vector<bool> & modes,size_t first)
+{
+  const bool pivot=distance(path[first],path[first+1])<1e-5;
+  size_t end=first+1;
+  while(end<modes.size() && modes[end]==modes[first]) {
+    if(pivot!=(distance(path[end],path[end+1])<1e-5)) {break;}
+    if(!pivot) {
+      const auto & a=path[end-1];const auto & b=path[end];const auto & c=path[end+1];
+      const double turn=wrap(std::atan2(c.y-b.y,c.x-b.x)-std::atan2(b.y-a.y,b.x-a.x));
+      if(std::abs(turn)>.7) {break;}
+    }
+    ++end;
+  }
+  return end;
+}
 // A car reference with changing body heading or a direction cusp must be
 // executed with its pose/direction sequence. Crab-following only its XY trace
 // loses that sequence at overlapping forward/reverse branches.
@@ -158,20 +158,38 @@ inline bool strictAckermannReference(const std::vector<Pose2> & path,const Motio
   }
   return oriented;
 }
+// A non-car edge requires holonomic mode. Between these required sections,
+// a straight can stay holonomic at either end without paying a handoff.
+// Preserve car curves and gear sequences that crab tracking cannot execute.
 inline Decision decide(const std::vector<Pose2> & path,const MotionLimits & l,double initial_yaw,
-  bool continuing_ackermann=false,bool force_ackermann=false)
+  std::optional<bool> entering_car=std::nullopt)
 {
-  Decision d;d.modes=schedule(path,l,continuing_ackermann);
-  if(force_ackermann || strictAckermannReference(path,l)) {
-    std::fill(d.modes.begin(),d.modes.end(),true);
-    d.mixed=estimate(path,d.modes,l,initial_yaw);d.use_mixed=true;
-    return d;
+  Decision d;
+  for(size_t i=0;i+1<path.size();++i) {d.modes.push_back(edge(path,i,l).ackermann);}
+  const bool all_car=std::all_of(d.modes.begin(),d.modes.end(),[](bool car){return car;});
+  bool requires_car=false;
+  for(size_t first=0;first<d.modes.size();) {
+    if(!d.modes[first]) {++first;continue;}
+    size_t end=first+1;
+    while(end<d.modes.size() && d.modes[end]) {++end;}
+    const std::vector<Pose2> run(path.begin()+first,path.begin()+end+1);
+    if(strictAckermannReference(run,l)) {
+      requires_car=true;
+    } else if(!all_car) {
+      std::fill(d.modes.begin()+first,d.modes.begin()+end,false);
+    }
+    first=end;
   }
   d.mixed=estimate(path,d.modes,l,initial_yaw);
-  d.holonomic=estimate(path,std::vector<bool>(d.modes.size(),false),l,initial_yaw);
-  // Equal ETA favours a feasible Ackermann segment; no fictitious faster speed.
-  d.use_mixed=d.mixed.seconds<=d.holonomic.seconds+.25;
-  if(!d.use_mixed) {std::fill(d.modes.begin(),d.modes.end(),false);}
+  if(!requires_car) {
+    std::vector<bool> omni(d.modes.size(),false);
+    d.holonomic=estimate(path,omni,l,initial_yaw);
+    const bool use_holonomic=all_car && entering_car.has_value() ?
+      !*entering_car : d.holonomic.seconds<d.mixed.seconds-1e-6;
+    if(use_holonomic) {
+      d.modes=std::move(omni);d.mixed=d.holonomic;
+    }
+  }
   return d;
 }
 }

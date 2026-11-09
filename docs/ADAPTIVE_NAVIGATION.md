@@ -6,94 +6,103 @@ holonomic segments. The existing `ackermann` and `holonomic` profiles
 remain available for comparison. These parameters apply to the Mini V2
 simulation; they do not calibrate a larger Ranger.
 
-Since 2026-11-02, the holonomic planner and controller support direct diagonal
-motion, and global route selection prioritizes length. Change details and
-validation: [DIAGONAL_NAVIGATION.md](DIAGONAL_NAVIGATION.md).
+The adaptive planner scores forward visibility and passage centering on each
+feasible route. The plan contains the body heading to follow during travel
+and the position of each required pivot. The RViz goal arrow sets the final
+heading. The fixed holonomic profile still supports direct diagonal motion.
 
-In the current simulation, `/is_retained_path_valid` checks the remaining
-path using the same footprint as the planner. It logs the rejected path's
-timestamp and first blocked pose. Hybrid-A* retains the raw path while
-validating a smoothed copy. Long straight segments can receive a candidate
-whose chassis heading follows the direction of travel, with both rotations,
-required time, and clearance checked. The `navigation_motion_guard` node
-checks the final command after limits and any smoothing. It uses the local
-costmap, scan age, and measured velocity. Commands before and after this
-check appear on `/cmd_vel_candidate` and `/cmd_vel`.
-[Manual validation instructions, recorded drives, and results](validation/navigation-improvements-20261103/README.md).
+The retained-path service checks the remaining footprint sweep against the
+global costmap. The motion guard checks commands against the local costmap,
+scan age, and measured velocity. Compare the requested and accepted commands
+on `/cmd_vel_candidate` and `/cmd_vel`.
 
-## Starting a new world
+## Testing in larics_ured
 
-Stop the previous simulation before starting another in the same domain.
-In a terminal:
+From the startup directory, launch Gazebo and RViz with the saved map:
 
 ```bash
 cd /home/bedathenic/bedenic_ws/src/ranger_navigation_startup
-bash simulation.sh build
-bash simulation.sh navigate profile:=adaptive \
-  world:=/home/bedathenic/bedenic_ws/src/ugv_sim/ranger/ranger_mini/worlds/corridor_lab.world \
-  map:=/home/bedathenic/bedenic_ws/src/ranger_navigation_startup/maps/corridor_lab/map.yaml \
-  gui:=true rviz:=true
+bash simulation.sh larics_ured
 ```
 
-In another terminal, after AMCL becomes active:
-
-```bash
-cd /home/bedathenic/bedenic_ws/src/ranger_navigation_startup
-bash simulation.sh initial_pose 0 0 0
-```
-
-Use `Nav2 Goal` in RViz. The initial goal sequence is `(3, 0, 0°)`,
-`(4, 2.3, 0°)`, `(7, 3.65, 0°)`. Maintaining a 0° heading in the narrow
-cross-corridor requires lateral driving. Longer straight segments permit
-Ackermann motion. The `Navigation modes` display includes
-`HOLONOMIC_ROTATE` for rotation in place and `HOLONOMIC_RECOVERY` for a
-local return to the path. It marks Ackermann segments green and holonomic
-segments orange, and displays the current mode above the robot.
-
-To cancel a goal:
-
-```bash
-bash simulation.sh cancel
-```
-
-`corridor_lab` contains three long corridors, 1.20 m cross-passages, a
-1.30 m main corridor, rooms, and ten inserted obstacles or constrictions.
-The map is generated from the same geometry as the Gazebo world rather than
-from a SLAM recording. `generate_corridor_world.py` reproduces the world,
-map, and goal list. To test SLAM, launch the same `world` with
-`simulation.sh slam`.
+AMCL initializes at the spawn pose `(1.0, 0.0, 0)`. Use **Nav2 Goal** in
+RViz or repeat the reference round trip and obstacle test headlessly with
+`bash simulation.sh validate_larics_ured --extended`. Use
+`bash simulation.sh validate_larics_ured --ackermann-straight` to check
+the adaptive controller on an aligned straight from a fresh spawn.
+`bash simulation.sh validate_larics_ured --check-replans` drives the full
+fixture and requires exactly one box detour and the original office path. Each run saves its logs.
+The RViz navigation markers show the current controller above the robot,
+Ackermann segments in green, and holonomic segments in orange. Use
+`bash simulation.sh cancel` to cancel the active interactive goal.
 
 ## Driving-mode selection
 
-1. The global planner generates two candidates when a new plan is actually
-   needed. Both use the costmap and robot footprint. The Ackermann candidate
-   is evaluated with its headings and gear-change sequence; the Lattice
-   candidate is evaluated for permitted mixed/holonomic execution. The shorter
-   feasible candidate wins. With zero padding, estimated duration breaks numerical distance ties. In free space, the holonomic candidate joins start and goal
-   with a straight line after checking the footprint.
-2. Position and heading changes determine curvature and required radius
-   `R = 1 / |kappa|`. The angle between the path tangent and chassis
-   longitudinal axis is also checked. A lateral segment with constant heading
-   has infinite radius but is still not Ackermann-feasible.
-3. The local radius limit is 0.80 m; global Hybrid-A* uses 1.10 m to leave room
-   for tracking corrections. On a constant-heading straight segment, the
-   permitted difference between translation direction and the chassis
-   longitudinal axis, forward or backward, is 0.025 rad. A larger difference
-   requires lateral motion. Ackermann may reverse at a marked path point.
-   The holonomic controller handles rotations in place.
-4. Duration estimates include length, forward/reverse/lateral speeds, angular
-   speed, chassis alignment, wheel-angle changes, and Ackermann reversal cost.
-   Mixed execution is compared with fully holonomic execution of the same
-   remaining path. A reference requiring Ackermann headings and gear changes
-   must retain that sequence; lateral tracking of only its XY line is not
-   offered. For practically equal duration estimates (0.25 s), a feasible
-   Ackermann segment wins. This is a kinematic estimate, not a guarantee of
-   globally shortest actual execution time.
-5. The controller reevaluates the remaining segment without requesting a new
-   global plan. Holonomic mode has a minimum dwell of 2 s. Ackermann islands
-   shorter than 0.65 m are merged into surrounding holonomic segments. An
-   Ackermann segment already being executed is not interrupted merely because
-   its remaining length drops below that threshold.
+1. On a new goal or an invalidated plan, Smac Hybrid-A* and State Lattice
+   supply candidate paths. The adaptive planner checks both candidates and
+   tries alternatives on their moving sections. Pivots, reversals and bends
+   divide the route. On a straight segment the preferred heading points at
+   its endpoint. On a curve the preferred heading follows its tangent.
+2. Where two opposite costmap boundaries are at most
+   `GridBased.corridor_width` apart (default 1.6 m), the planner samples the
+   midpoint between them. It tries a gradual approach to this midpoint and
+   a short sideways entry or exit for off-center goals. An opening on one
+   side ends the two-wall measurement. Occupied cells, unknown cells and the
+   map boundary constrain the measurement.
+3. Alternatives must pass the footprint sweep for translations and complete
+   rotations. When a turn at an endpoint is blocked, the planner tries turning
+   inside the passage or in a wider section. Sideways and backward motion
+   remain available where the forward-facing footprint cannot pass. The
+   hard collision checks use the configured polygon and padding.
+4. The planner tries the native routes, constant chassis headings across several
+   bends, and a direct heading within 45° of the travel direction. When the
+   direct translation is blocked or passes close to an obstacle on routes up to 8 m long, it checks
+   one- and two-bend detours on either side. It also searches ordered points on the lattice
+   route for a feasible sequence with the fewest straight legs at a fixed heading.
+   It also searches a grid for each candidate body heading. Each grid cell
+   represents a placement of the oriented polygon, including its corners.
+   Shortcuts through the resulting route must preserve clearance through bends.
+   On a longer approach the planner also samples the centerline every 8 cm
+   and adjusts it laterally in quarter-cell steps. It compares a fixed heading
+   with a forward-facing curve, including the turns into and out of each.
+   It can also use one holonomic turn between those legs or align in open
+   space before entering a continuous Hybrid-A* arc.
+   On an obstacle-triggered replan, returns connected to the blocking cell
+   also contribute a soft cost for the space just behind the measured surface
+   (`GridBased.unobserved_obstacle_depth`, 0.20 m). Side returns bound this
+   depth. The planner tests actual feasibility against the measured costmap.
+   Every candidate passes the same continuous swept-footprint check.
+5. The scheduler combines adjacent compatible sections under one controller.
+   It preserves required car arcs and gear changes. A straight next to a crab
+   or pivot can stay holonomic. A wholly car-compatible straight compares both
+   speeds. At the goal, the car controller can finish an aligned approach.
+6. Among feasible candidates, retain those within 2.5 cm of the best minimum
+   footprint-edge clearance, capping the preferred clearance at 16 cm. Even the
+   narrowest feasible passage remains eligible if it is the only option.
+   Within this group, rank by fewest scheduled controller changes. When an
+   obstacle invalidates the path, the count includes a handoff from the
+   currently executing mode to the first segment of the replacement. Among those,
+   the planner allows 0.20 m above the least observed rearward travel. It
+   compares estimated travel and steering time plus front-heading, passage
+   centering and inflation costs converted to seconds. Within 10% of the
+   fastest such score (`GridBased.segment_time_slack`), the candidate with the
+   fewest maneuvers wins. Equal maneuver counts use the lower score. This
+   compares the generated candidates and preserves the requested final yaw.
+7. The behavior tree checks the remaining path at 1 Hz. A replacement for the
+   same goal needs two consecutive blocked checks. The first conflict suspends
+   FollowPath. A clear second check resumes the same path at its current
+   segment, preserving completed turns and gear changes. A persistent
+   obstruction authorizes a detour. The service logs the path index and
+   blocking cell coordinates and cost on its locked grid. A
+   controller or validation-service failure stops following and retries with
+   the path retained. Persistent failure eventually ends the action. A new
+   goal requests its own path. Local collision checking continues during travel.
+
+Inspect `/navigation_plan_decision` for the selected source, score and
+ordered segment goals `[x, y, yaw]` in the map frame. Each segment has a
+mode, a pivot flag and its final path index. `/navigation_mode_decision`
+reports the current scheduled segment and the actual controller mode.
+The RViz `/navigation_modes` marker colors the remaining scheduled path.
 
 Speeds used by the estimate are 0.20 m/s forward, 0.15 m/s Ackermann reverse,
 0.20 m/s holonomic, 0.25 rad/s for alignment, and 1 rad/s for wheel steering.

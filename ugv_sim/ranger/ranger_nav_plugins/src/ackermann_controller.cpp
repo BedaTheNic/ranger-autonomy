@@ -309,8 +309,12 @@ public:
     optimizer_.shutdown(); visualizer_.on_cleanup(); parameters_.reset();
   }
   void activate() override {visualizer_.on_activate(); parameters_->start();}
-  void deactivate() override {visualizer_.on_deactivate();}
-  void setPlan(const nav_msgs::msg::Path & plan) override {path_.setPath(plan); assist_.reset();}
+  void deactivate() override {reference_.poses.clear();visualizer_.on_deactivate();}
+  void setPlan(const nav_msgs::msg::Path & plan) override
+  {
+    if(sameStampedPath(reference_,plan)) {return;}
+    path_.setPath(plan);reference_=plan;assist_.reset();
+  }
   void setSpeedLimit(const double & limit, const bool & percentage) override
   {
     optimizer_.setSpeedLimit(limit, percentage);
@@ -405,6 +409,7 @@ private:
   double nodeRadius() const
   {return parent_.lock()->get_parameter(name_ + ".AckermannConstraints.min_turning_r").as_double();}
   ProgressAssist assist_;
+  nav_msgs::msg::Path reference_;
   rclcpp_lifecycle::LifecycleNode::WeakPtr parent_;
   std::string name_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_;

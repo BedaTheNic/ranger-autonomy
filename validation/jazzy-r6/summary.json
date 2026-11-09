@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "release": "jazzy-r6",
+  "physical_robot": false,
+  "source_package_files_verified": 78,
+  "profiles": [
+    "adaptive",
+    "holonomic",
+    "ackermann"
+  ],
+  "navigate_to_pose_tree_exercised": true,
+  "adaptive_ackermann_branch_exercised": true,
+  "unit_tests": {
+    "logging": 11,
+    "navigation_reported": 96,
+    "skipped": 1,
+    "failures": 0
+  },
+  "hardware_footprint_m": {
+    "length": 0.738,
+    "width": 0.5
+  },
+  "costmap_padding_m": 0,
+  "planning_padding_m": 0,
+  "lattice_search_padding_m": 0,
+  "measured_CAN_feedback": true,
+  "drive_gateway": true
+}
