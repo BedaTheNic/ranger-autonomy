@@ -1,0 +1,28 @@
+name: Publish Ranger Jazzy R6 recorder add-on
+
+on:
+  push:
+    branches: [release/ranger-bag-addon-r6]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.repository == 'BedaTheNic/ranger-autonomy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Verify and upload the reviewed archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          asset=release-assets/jazzy-r6/ranger-bag-addon.tar.gz
+          printf '%s  %s\n' '9b24c3c0a9306cbb6a8f88f581078cda8b4764a1771c392e2d9ab7f32027695e' "$asset" | sha256sum --check --strict
+          gh release upload jazzy-r6 "$asset" --repo "$GITHUB_REPOSITORY"
