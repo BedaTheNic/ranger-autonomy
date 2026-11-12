@@ -3,11 +3,7 @@
 #include "dwb_core/dwb_local_planner.hpp"
 #include "dwb_core/exceptions.hpp"
 #include "dwb_core/illegal_trajectory_tracker.hpp"
-#ifdef RANGER_NAV2_JAZZY
-#include "nav2_core/controller_exceptions.hpp"
-#else
-#include "nav2_core/exceptions.hpp"
-#endif
+#include "footprint_escape.hpp"
 #include "heading_maneuver.hpp"
 #include "holonomic_velocity.hpp"
 #include "pluginlib/class_list_macros.hpp"
@@ -15,13 +11,33 @@
 namespace ranger_nav_plugins
 {
 #ifdef RANGER_NAV2_JAZZY
-using TrackingException = nav2_core::ControllerException;
+// Jazzy's public DWB command method translates the scorer's exception.
+using DwbTrajectoryFailure = nav2_core::NoValidControl;
 #else
-using TrackingException = nav2_core::PlannerException;
+using DwbTrajectoryFailure = dwb_core::NoLegalTrajectoriesException;
 #endif
+
+class DwbFootprintBlocked : public DwbTrajectoryFailure, public FootprintBlockage
+{
+public:
+  DwbFootprintBlocked(const DwbTrajectoryFailure & failure, const Pose2 & target)
+  : DwbTrajectoryFailure(failure), FootprintBlockage{target, false} {}
+};
+
 class ProgressDWBController : public dwb_core::DWBLocalPlanner
 {
 public:
+  void configure(
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent, std::string name,
+    std::shared_ptr<tf2_ros::Buffer> tf,
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> map) override
+  {
+    auto node = parent.lock();
+    const auto parameter = name + ".footprint_escape_enabled";
+    if (!node->has_parameter(parameter)) {node->declare_parameter(parameter, false);}
+    footprint_escape_enabled_ = node->get_parameter(parameter).as_bool();
+    dwb_core::DWBLocalPlanner::configure(parent, name, tf, map);
+  }
   void deactivate() override {reference_.poses.clear();dwb_core::DWBLocalPlanner::deactivate();}
   void setSpeedLimit(const double & limit,const bool & percentage) override
   {
@@ -72,7 +88,7 @@ public:
         command.twist=pursuit(robot,path.back(),false,1,.8,
           std::min(.08*speed_scale_,std::hypot(speed.linear.x,speed.linear.y)+.03));
         if(!collisionFree(robot,command.twist,*map,costmap_ros_->getRobotFootprint())) {
-          throw TrackingException("Terminal approach is blocked");
+          throwBlocked("Terminal approach is blocked", path.back());
         }
       } else {
         const Projection endpoint{path.size()-1,0,distance(robot,path.back()),path.back()};
@@ -80,7 +96,7 @@ public:
           costmap_ros_->getRobotFootprint(),clock_->now().seconds(),speed_scale_,false,true);
         if(turn) {command.twist=*turn;}
         else if(std::abs(wrap(path.back().a-robot.a))>.08) {
-          throw TrackingException("Terminal rotation is blocked");
+          throwBlocked("Terminal rotation is blocked", path.back(), true);
         }
       }
       remember(command.twist);assist_.reset();return command;
@@ -137,7 +153,20 @@ public:
         "Progress assist: collision-checked holonomic tracking on retained path");
       return command;
     }
-    if(nominal_error) {std::rethrow_exception(nominal_error);}
+    if(nominal_error) {
+      if (footprint_escape_enabled_ && distance(robot, target) > .025) {
+        try {std::rethrow_exception(nominal_error);}
+        catch (const DwbTrajectoryFailure & failure) {
+          throw DwbFootprintBlocked(failure, target);
+        }
+      }
+      std::rethrow_exception(nominal_error);
+    }
+    if (footprint_escape_enabled_ && help && distance(robot, target) > .025 &&
+      std::hypot(candidate.linear.x, candidate.linear.y) > 1e-6 && costmap_ros_->isCurrent())
+    {
+      throw FootprintBlocked("Holonomic progress stalled at a blocked footprint", target);
+    }
     return command;
   }
 protected:
@@ -178,6 +207,12 @@ protected:
     return best;
   }
 private:
+  [[noreturn]] void throwBlocked(const char * message, const Pose2 & target, bool rotate = false)
+  {
+    if (footprint_escape_enabled_) {throw FootprintBlocked(message, target, rotate);}
+    throw TrackingException(message);
+  }
+
   void loadSegment()
   {
     auto segment=reference_;
@@ -201,6 +236,7 @@ private:
   double speed_scale_{1.0};
   double target_x_{0},target_y_{0};
   bool terminal_pivot_{false};
+  bool footprint_escape_enabled_{false};
 };
 }
 PLUGINLIB_EXPORT_CLASS(ranger_nav_plugins::ProgressDWBController,nav2_core::Controller)

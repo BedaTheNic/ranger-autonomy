@@ -1,0 +1,52 @@
+name: ranger-bag
+services:
+  bag-recorder:
+    container_name: ranger_hero_bag-recorder
+    image: ${AUTONOMY_IMAGE:?Set AUTONOMY_IMAGE in .env}
+    network_mode: host
+    ipc: private
+    init: true
+    restart: "no"
+    stop_signal: SIGINT
+    stop_grace_period: 90s
+    user: "${RANGER_BAG_UID:-1000}:${RANGER_BAG_GID:-1000}"
+    cap_drop: [ALL]
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-9}
+      ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+      FASTDDS_BUILTIN_TRANSPORTS: ${FASTDDS_BUILTIN_TRANSPORTS:-UDPv4}
+      ROS_LOG_DIR: /tmp/ros-log
+      RANGER_BAG_ROOT: /bags
+      RANGER_BAG_TOPICS_PATH: /recorder/topics.yaml
+      RANGER_BAG_QOS_PATH: /recorder/qos.yaml
+      RANGER_BAG_MAX_SECONDS: ${RANGER_BAG_MAX_SECONDS:-120}
+      RANGER_BAG_SPLIT_BYTES: ${RANGER_BAG_SPLIT_BYTES:-536870912}
+      RANGER_BAG_MIN_FREE_BYTES: ${RANGER_BAG_MIN_FREE_BYTES:-2147483648}
+      RANGER_BAG_STORAGE: mcap
+      RANGER_BAG_MCAP_PRESET: zstd_fast
+    command: [python3, /recorder/bag_record.py]
+    volumes:
+      - type: bind
+        source: ${RANGER_BAG_HOST_DIR:-./bags}
+        target: /bags
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./bag_record.py
+        target: /recorder/bag_record.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RANGER_BAG_TOPICS_FILE:-./config/bag_topics.yaml}
+        target: /recorder/topics.yaml
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RANGER_BAG_QOS_FILE:-./config/bag_qos.yaml}
+        target: /recorder/qos.yaml
+        read_only: true
+        bind: {create_host_path: false}
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}

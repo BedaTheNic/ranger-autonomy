@@ -1,0 +1,43 @@
+topics:
+  # Full sensor and TF messages.
+  - /livox/lidar
+  - /livox/imu
+  - /scan_obstacles
+  - /scan
+  - /tf
+  - /tf_static
+  - /map
+  - /odom
+  - /amcl_pose
+  # Costmaps and footprints used in collision checks.
+  - /local_costmap/costmap_raw
+  - /global_costmap/costmap_raw
+  - /local_costmap/costmap_raw_updates
+  - /global_costmap/costmap_raw_updates
+  - /local_costmap/published_footprint
+  - /global_costmap/published_footprint
+  - /plan
+  - /local_plan
+  # Command stages, wheel measurements and drive status.
+  - /cmd_vel_candidate
+  - /cmd_vel_nav_raw
+  - /cmd_vel_ackermann_smoothed
+  - /cmd_vel_nav
+  - /cmd_vel
+  - /ranger/steering_joint_states
+  - /ranger/actuator_state
+  - /actuator_state
+  - /system_state
+  - /autonomy/drive_status
+  # Mode, action and diagnostic events.
+  - /navigation_plan_decision
+  - /navigation_mode_decision
+  - /navigation_mode
+  - /footprint_escape_status
+  - /behavior_tree_log
+  - /navigate_to_pose/_action/status
+  - /navigate_to_pose/_action/feedback
+  - /navigate_through_poses/_action/status
+  - /follow_path/_action/status
+  - /compute_path_to_pose/_action/status
+  - /diagnostics

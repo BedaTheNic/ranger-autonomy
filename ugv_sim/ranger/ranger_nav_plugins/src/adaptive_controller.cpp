@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <chrono>
+#include <exception>
 #include <sstream>
+#include "footprint_escape.hpp"
 #include "mode_policy.hpp"
 #include "heading_maneuver.hpp"
 #include "reversal_alignment.hpp"
@@ -30,6 +33,13 @@ public:
     parameter("holonomic_speed",limits_.lateral);parameter("angular_speed",limits_.angular);
     parameter("steering_rate",limits_.steering_rate);
     parameter("minimum_mode_time",minimum_mode_time_);
+    const auto escape_parameter = name + ".footprint_escape_enabled";
+    if (!node->has_parameter(escape_parameter)) {node->declare_parameter(escape_parameter, false);}
+    footprint_escape_enabled_ = node->get_parameter(escape_parameter).as_bool();
+    const auto child_escape_parameter = name + ".Holonomic.footprint_escape_enabled";
+    if (!node->has_parameter(child_escape_parameter)) {
+      node->declare_parameter(child_escape_parameter, footprint_escape_enabled_);
+    }
     ack_=loader_.createSharedInstance("ranger_nav_plugins::AckermannController");
     holo_=loader_.createSharedInstance("ranger_nav_plugins::ProgressDWBController");
     ack_->configure(parent,name+".Ackermann",tf,map);
@@ -37,23 +47,31 @@ public:
     mode_pub_=node->create_publisher<std_msgs::msg::String>("navigation_mode",rclcpp::QoS(1).transient_local());
     decision_pub_=node->create_publisher<std_msgs::msg::String>("navigation_mode_decision",10);
     marker_pub_=node->create_publisher<visualization_msgs::msg::MarkerArray>("navigation_modes",rclcpp::QoS(1).transient_local());
+    escape_pub_=node->create_publisher<nav_msgs::msg::Path>("footprint_escape_status",1);
   }
   void activate() override
-  {ack_->activate();holo_->activate();mode_pub_->on_activate();decision_pub_->on_activate();marker_pub_->on_activate();}
+  {ack_->activate();holo_->activate();mode_pub_->on_activate();decision_pub_->on_activate();marker_pub_->on_activate();escape_pub_->on_activate();}
   void deactivate() override
-  {reference_.poses.clear();ack_->deactivate();holo_->deactivate();mode_pub_->on_deactivate();decision_pub_->on_deactivate();marker_pub_->on_deactivate();}
-  void cleanup() override {ack_->cleanup();holo_->cleanup();mode_pub_.reset();decision_pub_.reset();marker_pub_.reset();}
+  {escape_.reset();publishEscapeStatus();reference_.poses.clear();escape_attempted_=false;escape_replan_braking_=false;ack_->deactivate();holo_->deactivate();mode_pub_->on_deactivate();decision_pub_->on_deactivate();marker_pub_->on_deactivate();escape_pub_->on_deactivate();}
+  void cleanup() override {ack_->cleanup();holo_->cleanup();mode_pub_.reset();decision_pub_.reset();marker_pub_.reset();escape_pub_.reset();}
   void setPlan(const nav_msgs::msg::Path & path) override
   {
     if(path.poses.empty()) {throw std::runtime_error("Empty adaptive reference");}
+    // Humble calls setPlan for a new FollowPath action or path preemption.
+    // Preserve the geometric cursor on identical paths, never an old maneuver.
+    if (escape_) {escape_.reset();escape_replan_braking_ = true;}
+    escape_attempted_ = false;
+    publishEscapeStatus();
     if(sameStampedPath(reference_,path)) {
       RCLCPP_INFO(node_.lock()->get_logger(),"Resuming retained path at index %zu of %zu",cursor_,path.poses.size());
       return;
     }
     std::optional<bool> entering_car;
+    bool same_goal = false;
     if(!reference_.poses.empty() && reference_.header.frame_id==path.header.frame_id) {
       const auto previous=planar(reference_.poses.back().pose),next=planar(path.poses.back().pose);
-      if(distance(previous,next)<1e-5 && std::abs(wrap(previous.a-next.a))<1e-5) {
+      same_goal = distance(previous,next)<1e-5 && std::abs(wrap(previous.a-next.a))<1e-5;
+      if(same_goal) {
         if(published_mode_=="ACKERMANN") {entering_car=true;}
         else if(published_mode_.rfind("HOLONOMIC",0)==0) {entering_car=false;}
         else if(mode_!=0) {entering_car=(mode_==1);}
@@ -75,6 +93,54 @@ public:
   geometry_msgs::msg::TwistStamped computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped & pose,const geometry_msgs::msg::Twist & speed,
     nav2_core::GoalChecker * checker) override
+  {
+    // Clear the lease on return/exception, or refresh it while recovery runs.
+    struct StatusOnExit {
+      AdaptiveController * owner;
+      ~StatusOnExit() {
+        // A shutting-down ROS publisher must not mask the controller error.
+        try {owner->publishEscapeStatus();} catch (const std::exception &) {}
+      }
+    } status_on_exit{this};
+    if (escape_replan_braking_) {
+      if (checker) {checker->reset();}
+      if (std::hypot(speed.linear.x, speed.linear.y) > .015 || std::abs(speed.angular.z) > .03) {
+        geometry_msgs::msg::TwistStamped stop;
+        stop.header = pose.header;
+        return stop;
+      }
+      escape_replan_braking_ = false;
+    }
+    if (escape_) {
+      auto command = escapeCommand(pose, speed, checker);
+      if (command) {return *command;}
+    }
+    try {return track(pose, speed, checker);}
+    catch (const FootprintBlockage & blocked) {
+      if (!footprint_escape_enabled_ || escape_attempted_ ||
+        pose.header.frame_id != map_->getGlobalFrameID()) {throw;}
+      escape_attempted_ = true;
+      escape_.emplace(blocked, std::current_exception(), planar(pose.pose));
+      auto command = escapeCommand(pose, speed, checker);
+      if (command) {return *command;}
+      throw;
+    }
+  }
+private:
+  void publishEscapeStatus()
+  {
+    if (!footprint_escape_enabled_ || !escape_pub_ || !escape_pub_->is_activated()) {return;}
+    nav_msgs::msg::Path status;
+    status.header = reference_.header;
+    if (escape_ && (escape_->target || escape_->turning) && !reference_.poses.empty()) {
+      status.poses.push_back(reference_.poses.front());
+      status.poses.front().header.stamp = clock_->now();
+    }
+    escape_pub_->publish(status);
+  }
+  geometry_msgs::msg::TwistStamped track(
+    const geometry_msgs::msg::PoseStamped & pose,const geometry_msgs::msg::Twist & speed,
+    nav2_core::GoalChecker * checker)
   {
     geometry_msgs::msg::TwistStamped stop;stop.header=pose.header;
     auto global_pose=pose;
@@ -238,7 +304,136 @@ public:
       decision,current_edge.radius,now);
     return command;
   }
-private:
+  using SteadyClock = std::chrono::steady_clock;
+  struct Escape
+  {
+    Escape(
+      const FootprintBlockage & obstruction, std::exception_ptr failure, const Pose2 & pose)
+    : blocked(obstruction), failure(failure), last_pose(pose), started(SteadyClock::now()) {}
+
+    FootprintBlockage blocked;
+    std::exception_ptr failure;
+    Pose2 last_pose;
+    std::optional<Pose2> target;
+    SteadyClock::time_point started;
+    double travel{0.0};
+    bool turning{false};
+    bool stop_and_resume{false};
+  };
+
+  std::optional<geometry_msgs::msg::TwistStamped> escapeCommand(
+    const geometry_msgs::msg::PoseStamped & pose, const geometry_msgs::msg::Twist & speed,
+    nav2_core::GoalChecker * checker)
+  {
+    constexpr double max_travel = .24;
+    constexpr double position_tolerance = .01;
+    // Nav2 evaluates success after this call. Recheck XY while displaced even
+    // if the goal checker latched its XY tolerance before recovery.
+    if (checker) {checker->reset();}
+    auto fail = [&]() -> void {
+        const auto error = escape_->failure;
+        escape_.reset();
+        std::rethrow_exception(error);
+      };
+    auto & escape = *escape_;
+    const auto robot = planar(pose.pose);
+    const double speed_xy = std::hypot(speed.linear.x, speed.linear.y);
+    escape.travel += distance(escape.last_pose, robot);
+    escape.last_pose = robot;
+    const auto elapsed = std::chrono::duration<double>(SteadyClock::now() - escape.started).count();
+    if (pose.header.frame_id != map_->getGlobalFrameID() ||
+      !std::isfinite(speed_xy) || !std::isfinite(speed.angular.z) ||
+      !std::isfinite(escape.travel) || !std::isfinite(robot.a) ||
+      elapsed > (escape.turning ? 25.0 : 9.0) || escape.travel > max_travel + position_tolerance ||
+      !map_->isCurrent())
+    {
+      fail();
+    }
+
+    geometry_msgs::msg::TwistStamped command;
+    command.header = pose.header;
+    auto * grid = map_->getCostmap();
+    std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*grid->getMutex());
+    const auto footprint = map_->getRobotFootprint();
+    if (!escapeTranslationFree(robot, robot, *grid, footprint)) {
+      RCLCPP_WARN(node_.lock()->get_logger(),
+        "Footprint escape stopped: current footprint at (%.3f, %.3f, %.3f) is occupied or outside the known grid",
+        robot.x, robot.y, robot.a);
+      fail();
+    }
+    const bool stopped = speed_xy <= .015 && std::abs(speed.angular.z) <= .03;
+    const bool ready = escapeRestoresTracking(robot, escape.blocked, *grid, footprint);
+    const auto can_rejoin_at_measured_heading = [&]() {
+        return escapeTranslationFree(
+          robot, {escape.blocked.target.x, escape.blocked.target.y, robot.a}, *grid, footprint);
+      };
+
+    if (escape.stop_and_resume) {
+      if (!stopped) {return command;}
+      if (!ready || (escape.turning && !can_rejoin_at_measured_heading())) {fail();}
+      RCLCPP_INFO(node_.lock()->get_logger(),
+        "Footprint escape completed after %.3f m; resuming the retained goal", escape.travel);
+      escape_.reset();
+      return std::nullopt;
+    }
+    if (escape.turning) {
+      if (!ready) {fail();}
+      const double remaining = wrap(escape.blocked.target.a - robot.a);
+      if (std::abs(remaining) <= .05 && can_rejoin_at_measured_heading()) {
+        escape.stop_and_resume = true;
+        return command;
+      }
+      if (speed_xy > .015) {return command;}
+      const double cap = std::min(.22, limits_.angular) * speed_scale_;
+      command.twist.angular.z = std::clamp(1.3 * remaining, -cap, cap);
+      publish("HOLONOMIC_FOOTPRINT_ESCAPE_ROTATE", plan_decision_, INFINITY, clock_->now().seconds());
+      return command;
+    }
+    if (ready) {
+      if (!stopped) {return command;}
+      if (escape.target && escape.blocked.rotate) {escape.turning = true;}
+      else {escape.stop_and_resume = true;}
+      return command;
+    }
+
+    if (escape.target) {
+      escape.target->a = robot.a;
+      const double remaining = distance(robot, *escape.target);
+      if (remaining <= position_tolerance || remaining > max_travel - escape.travel + position_tolerance ||
+        !escapeTranslationFree(robot, *escape.target, *grid, footprint) ||
+        !escapeRestoresTracking(*escape.target, escape.blocked, *grid, footprint))
+      {
+        // Brake before choosing another direction against the updated grid.
+        escape.target.reset();
+        return command;
+      }
+    }
+    if (!escape.target) {
+      if (!stopped) {return command;}
+      escape.target = findFootprintEscape(robot, escape.blocked, max_travel - escape.travel, *grid, footprint);
+      if (!escape.target) {
+        RCLCPP_WARN(node_.lock()->get_logger(),
+          "Footprint escape stopped: no clear offset within remaining %.3f m", max_travel - escape.travel);
+        fail();
+      }
+      RCLCPP_INFO(node_.lock()->get_logger(),
+        "Footprint escape in %s: (%.3f, %.3f) -> (%.3f, %.3f), blocked approach (%.3f, %.3f, %.3f), turn=%d",
+        pose.header.frame_id.c_str(), robot.x, robot.y, escape.target->x, escape.target->y,
+        escape.blocked.target.x, escape.blocked.target.y, escape.blocked.target.a, escape.blocked.rotate);
+      if (mode_ != 2) {
+        mode_ = 2;
+        mode_stamp_ = clock_->now().seconds();
+        ++switches_;
+      }
+    }
+    if (std::abs(speed.angular.z) > .03) {return command;}
+    const double velocity = std::min({.06, limits_.lateral, distance(robot, *escape.target)}) * speed_scale_;
+    command.twist = pursuit(robot, *escape.target, false, 1, limits_.radius, velocity);
+    feasible_ = false;
+    publish("HOLONOMIC_FOOTPRINT_ESCAPE", plan_decision_, INFINITY, clock_->now().seconds());
+    return command;
+  }
+
   std::optional<geometry_msgs::msg::TwistStamped> alignReversal(
     const geometry_msgs::msg::PoseStamped & pose, const geometry_msgs::msg::Twist & speed,
     nav2_core::GoalChecker * checker, const Decision & decision, double now)
@@ -289,7 +484,11 @@ private:
       command.twist=pursuit(robot,target,false,1,limits_.radius,
         std::min(.08*speed_scale_,std::hypot(speed.linear.x,speed.linear.y)+.03));
       if(!collisionFree(robot,command.twist,*grid,map_->getRobotFootprint())) {
-        recovery_active_=false;throw std::runtime_error("No collision-free holonomic rejoin maneuver");
+        recovery_active_=false;
+        if (footprint_escape_enabled_) {
+          throw FootprintBlocked("No collision-free holonomic rejoin maneuver", target);
+        }
+        throw std::runtime_error("No collision-free holonomic rejoin maneuver");
       }
     }
     const auto & decision=plan_decision_;
@@ -343,6 +542,7 @@ private:
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> map_;
   rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::String>::SharedPtr mode_pub_,decision_pub_;
   rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>::SharedPtr escape_pub_;
   std::string name_,published_mode_;
   nav_msgs::msg::Path reference_;
   std::vector<Pose2> geometry_;
@@ -358,6 +558,8 @@ private:
   bool braking_for_reversal_{false};
   nav_msgs::msg::Path recovery_path_;
   bool recovery_active_{false},recovery_braking_{false};double recovery_until_{0};
+  bool footprint_escape_enabled_{false}, escape_attempted_{false}, escape_replan_braking_{false};
+  std::optional<Escape> escape_;
 };
 }
 PLUGINLIB_EXPORT_CLASS(ranger_nav_plugins::AdaptiveController,nav2_core::Controller)

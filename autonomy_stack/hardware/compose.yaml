@@ -91,6 +91,9 @@ services:
   controller:
     container_name: ranger_hero_controller
     <<: *runtime
+    environment:
+      <<: *runtime-environment
+      FOOTPRINT_ESCAPE_ENABLED: ${FOOTPRINT_ESCAPE_ENABLED:-false}
     command: [ros2, launch, /opt/autonomy/launch/component.launch.py, component:=controller]
   behaviors:
     container_name: ranger_hero_behaviors

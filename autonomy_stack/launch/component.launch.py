@@ -138,9 +138,13 @@ def setup(context):
                        'bt-navigator', 'velocity-smoother', 'command-guard'):
         files = [params('navigation_common.yaml'), params('navigation_' + profile + '.yaml')]
         if component == 'controller':
+            escape = os.environ.get('FOOTPRINT_ESCAPE_ENABLED', 'false').lower()
+            if escape not in ('true', 'false') or (escape == 'true' and profile != 'adaptive'):
+                raise RuntimeError('FOOTPRINT_ESCAPE_ENABLED must be false or true with NAV_PROFILE=adaptive')
+            extra = {'FollowPath.footprint_escape_enabled': escape == 'true'} if profile == 'adaptive' else {}
             # Raw navigation output does not directly drive physical hardware.
             nodes = [node('nav2_controller', 'controller_server', 'controller_server',
-                          files, remappings=[('cmd_vel', '/cmd_vel_nav_raw' if profile == 'ackermann'
+                          files, extra, remappings=[('cmd_vel', '/cmd_vel_nav_raw' if profile == 'ackermann'
                                              else controller_output),
                                              *([('joint_states', os.environ.get(
                                                  'STEERING_FEEDBACK_TOPIC', '/joint_states'))] if hardware else [])])]

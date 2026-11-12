@@ -12,6 +12,7 @@
 #endif
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
+#include "../src/recovery_hold.hpp"
 
 using Goals = std::vector<geometry_msgs::msg::PoseStamped>;
 using Status = BT::NodeStatus;
@@ -65,6 +66,7 @@ public:
         return Status::FAILURE;
       }
       nav_msgs::msg::Path path;
+      path.header.frame_id = "map";
       path.header.stamp.sec = s_.plans;
       path.poses.resize(2);
       setOutput("path", path);
@@ -181,6 +183,86 @@ TEST_P(PathPolicy, ControllerFailureRetriesTheSameCollisionFreePlan)
   ticks();
   EXPECT_EQ(s.plans, 1);
   EXPECT_EQ(s.clears, 0);
+}
+
+TEST_P(PathPolicy, ActiveLocalEscapeFinishesBeforeBlockedPathIsReplaced)
+{
+  ticks();
+  auto path = bb->get<nav_msgs::msg::Path>("path");
+  path.poses.front().header.stamp.sec = 10;
+  ranger_nav_plugins::RecoveryHold hold;
+  hold.update(path, ranger_nav_plugins::RecoveryHold::Clock::now());
+  bb->set("ranger_escape_heartbeat", hold);
+  bb->set("ranger_escape_ros_now", 10.0);
+  s.valid = false;
+  const auto following = s.follows;
+  ticks(10);
+  EXPECT_EQ(s.plans, 1);
+  EXPECT_EQ(s.follows, following + 10);
+  // Completion permits the usual two-check obstruction policy again.
+  hold.active = false;
+  bb->set("ranger_escape_heartbeat", hold);
+  ticks();
+  EXPECT_EQ(s.plans, 2);
+}
+
+TEST_P(PathPolicy, StaleOrDifferentPathEscapeDoesNotSuppressReplanning)
+{
+  ticks();
+  auto path = bb->get<nav_msgs::msg::Path>("path");
+  path.poses.front().header.stamp.sec = 9;
+  ranger_nav_plugins::RecoveryHold hold;
+  hold.update(path, ranger_nav_plugins::RecoveryHold::Clock::now());
+  bb->set("ranger_escape_heartbeat", hold);
+  bb->set("ranger_escape_ros_now", 10.0);
+  s.valid = false;
+  ticks();
+  EXPECT_EQ(s.plans, 2);
+  path.poses.front().header.stamp.sec = 10;
+  hold.update(path, ranger_nav_plugins::RecoveryHold::Clock::now());
+  bb->set("ranger_escape_heartbeat", hold);
+  s.valid = false;
+  ticks();
+  EXPECT_EQ(s.plans, 3);
+}
+
+TEST_P(PathPolicy, NewGoalPreemptsEvenDuringFreshLocalEscape)
+{
+  ticks();
+  auto path = bb->get<nav_msgs::msg::Path>("path");
+  path.poses.front().header.stamp.sec = 10;
+  ranger_nav_plugins::RecoveryHold hold;
+  hold.update(path, ranger_nav_plugins::RecoveryHold::Clock::now());
+  bb->set("ranger_escape_heartbeat", hold);
+  bb->set("ranger_escape_ros_now", 10.0);
+  auto goal = bb->get<geometry_msgs::msg::PoseStamped>("goal");
+  goal.pose.position.x += 1.0;
+  bb->set("goal", goal);
+  ticks();
+  EXPECT_EQ(s.plans, 2);
+}
+
+TEST(RecoveryHold, BothSourceAndReceiptExpiryAndTotalDurationAreBounded)
+{
+  using ranger_nav_plugins::RecoveryHold;
+  nav_msgs::msg::Path status;
+  status.header.frame_id = "map";
+  status.header.stamp.sec = 1;
+  status.poses.resize(1);
+  status.poses.front().header.stamp.sec = 10;
+  const auto now = RecoveryHold::Clock::now();
+  RecoveryHold hold;
+  hold.update(status, now);
+  EXPECT_TRUE(hold.permits(status.header, 10.0, now));
+  EXPECT_FALSE(hold.permits(status.header, 10.5, now));
+  EXPECT_FALSE(hold.permits(status.header, 9.0, now));
+  EXPECT_FALSE(hold.permits(status.header, 10.0, now + std::chrono::seconds(1)));
+  // A stream of repeated heartbeats must not extend the hard lease.
+  hold.update(status, now + std::chrono::seconds(27));
+  EXPECT_FALSE(hold.permits(status.header, 10.0, now + std::chrono::seconds(27)));
+  status.poses.clear();
+  hold.update(status, now);
+  EXPECT_FALSE(hold.permits(status.header, 10.0, now));
 }
 TEST_P(PathPolicy, GoalChangedDuringPlanningIsNotCachedAsTheOldPlansGoal)
 {

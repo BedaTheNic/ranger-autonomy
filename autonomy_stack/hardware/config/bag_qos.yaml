@@ -1,0 +1,22 @@
+# Keep static transforms that were published before the recorder started.
+/tf_static:
+  history: keep_last
+  depth: 100
+  reliability: reliable
+  durability: transient_local
+
+# Both Ranger scans were observed with best-effort publishers.
+/scan: &laser
+  history: keep_last
+  depth: 32
+  reliability: best_effort
+  durability: volatile
+/scan_obstacles: *laser
+
+# Jazzy Nav2 publishes full raw costmaps with transient-local, reliable QoS.
+/local_costmap/costmap_raw: &costmap
+  history: keep_last
+  depth: 8
+  reliability: reliable
+  durability: transient_local
+/global_costmap/costmap_raw: *costmap

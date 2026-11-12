@@ -4,6 +4,7 @@ set -euo pipefail
 hardware_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 stack_dir="$(dirname -- "$hardware_dir")"
 context_dir="$(dirname -- "$stack_dir")"
+bag_files=(compose.bag.yaml bag.sh bag_record.py bag_export.py config/bag_topics.yaml config/bag_qos.yaml)
 usage() {
   cat <<'EOF'
 Usage:
@@ -11,6 +12,7 @@ Usage:
   bash release.sh publish IMAGE [PLATFORMS] [EXTRA_IMAGE ...]
                                              # default linux/amd64 (robot architecture)
   bash release.sh bundle [OUTPUT_DIRECTORY]   # robot deployment files, no source/build
+  bash release.sh bag-bundle [OUTPUT_DIRECTORY] # recorder add-on for an existing installation
   bash release.sh source [OUTPUT_DIRECTORY]   # independent GitHub-ready source tree + archive
 
 Examples:
@@ -58,6 +60,7 @@ case "$action" in
       "$hardware_dir/compose.drive.yaml" "$hardware_dir/drive.sh" \
       "$hardware_dir/drive_guard.py" "$hardware_dir/apply_update.sh" "$hardware_dir/steering_feedback.py" \
       "$hardware_dir/ackermann_check.sh" "$hardware_dir/ackermann_diagnostics.py" "$stage/ranger-hardware/"
+    (cd -- "$hardware_dir" && cp --parents -- "${bag_files[@]}" "$stage/ranger-hardware")
     # Robot preset only; registry credentials remain in the host's Docker login.
     cp -- "$hardware_dir/.env.example" "$stage/ranger-hardware/.env"
     if [[ -n "${DEPLOY_IMAGE:-}" ]]; then
@@ -71,6 +74,13 @@ PY
     fi
     tar -czf "$destination/ranger-hardware-deploy.tar.gz" -C "$stage" ranger-hardware
     echo "$destination/ranger-hardware-deploy.tar.gz"
+    ;;
+  bag-bundle)
+    destination="${2:-$hardware_dir/dist}"
+    mkdir -p -- "$destination"
+    destination="$(cd -- "$destination" && pwd)"
+    tar -czf "$destination/ranger-bag-addon.tar.gz" -C "$hardware_dir" "${bag_files[@]}"
+    echo "$destination/ranger-bag-addon.tar.gz"
     ;;
   source)
     if [[ $# -ge 2 ]]; then

@@ -8,10 +8,15 @@ import shutil
 import tarfile
 
 
+BAG_ARTIFACTS = ('bags', 'bag-exports', 'ranger-????????T??????Z-????????',
+                 'ranger-bags-*', '*.mcap', '*.mcap.zstd', '*.db3', '*.db3.zstd')
+
+
 def export(workspace, destination):
     destination.mkdir(parents=True, exist_ok=False)
     ignored = shutil.ignore_patterns('.git', '.env', '__pycache__', '*.pyc',
-                                     'logs', 'maps', 'dist', '.runtime', 'build', 'install', 'log',
+                                     'logs', 'maps', 'dist', *BAG_ARTIFACTS,
+                                     '.runtime', 'build', 'install', 'log',
                                      'ackermann_report_*', 'update_backups', '.update.*')
     packages = ('ugv_sim/ranger/ranger_nav_plugins', 'ugv_sim/ranger/four_ws_control',
                 'ugv_sim/ranger/ranger_logging', 'ranger_ros2/ranger_msgs',
@@ -37,6 +42,11 @@ def export(workspace, destination):
         source_docs = workspace/'docs'
     for name in ('ADAPTIVE_NAVIGATION.md', 'LOGGING.md'):
         shutil.copy2(source_docs/name, docs/name)
+    bag_docs = workspace/'docs'/'BAG_RECORDING.md'
+    bag_link = ''
+    if bag_docs.is_file():
+        shutil.copy2(bag_docs, docs/bag_docs.name)
+        bag_link = '\nFull-rate recording and export: [details](docs/BAG_RECORDING.md).\n'
     workflows = destination/'.github/workflows'
     workflows.mkdir(parents=True)
     for workflow in (workspace/'autonomy_stack/hardware/ci').glob('*.yaml'):
@@ -47,10 +57,11 @@ def export(workspace, destination):
         'Build/publish: [release helper](autonomy_stack/hardware/release.sh).\n\n'
         'Deploy: [robot helper](autonomy_stack/hardware/robot.sh).\n\n'
         'Canonical navigation behavior: [details](docs/ADAPTIVE_NAVIGATION.md).\n\n'
-        'Structured logging: [details](docs/LOGGING.md).\n')
+        'Structured logging: [details](docs/LOGGING.md).\n' + bag_link)
     (destination/'.gitignore').write_text(
         '.env\n**/__pycache__/\n**/*.pyc\n**/logs/\n**/maps/\n**/dist/\n**/build/\n**/install/\n**/log/\n'
-        '**/ackermann_report_*\n**/update_backups/\n**/.update.*/\n')
+        '**/ackermann_report_*\n**/update_backups/\n**/.update.*/\n'
+        + ''.join(f'**/{pattern}\n' for pattern in BAG_ARTIFACTS))
     archive = destination.with_suffix('.tar.gz')
     with tarfile.open(archive, 'w:gz') as stream:
         stream.add(destination, arcname='ranger-autonomy')

@@ -9,6 +9,7 @@
 #endif
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
+#include "recovery_hold.hpp"
 
 namespace ranger_nav_plugins
 {
@@ -95,6 +96,14 @@ struct ObstructionCheck
   bool holding{false},confirmed{false};
 };
 
+bool recoveryMayContinue(const BT::Blackboard::Ptr & bb, const std_msgs::msg::Header & path)
+{
+  RecoveryHold recovery;
+  double ros_now = 0.0;
+  return bb->get("ranger_escape_heartbeat", recovery) &&
+    bb->get("ranger_escape_ros_now", ros_now) && recovery.permits(path, ros_now);
+}
+
 // A single scan can move a rasterized wall endpoint by one cell. Suspend the
 // follower immediately, then let the next rate-limited check decide whether
 // to resume this path or replace it. This also preserves the obstacle layer.
@@ -118,6 +127,11 @@ public:
     }
     const auto header=getInput<nav_msgs::msg::Path>("path").value().header;
     const auto stamp=header.stamp;
+    if (recoveryMayContinue(bb, header)) {
+      // The controller is already executing a bounded, independently guarded
+      // local escape. Keep checking the path but do not preempt that maneuver.
+      return BT::NodeStatus::SUCCESS;
+    }
     if (!check.holding || check.path!=header) {
       bb->set("ranger_obstruction",ObstructionCheck{header,true,false});
       RCLCPP_INFO(rclcpp::get_logger("retained_path_policy"),"Holding retained path %d.%09u on first obstruction",
@@ -136,15 +150,35 @@ public:
 class FollowCheckedPath : public BT::DecoratorNode
 {
 public:
-  using BT::DecoratorNode::DecoratorNode;
+  FollowCheckedPath(const std::string & name, const BT::NodeConfiguration & config)
+  : BT::DecoratorNode(name, config)
+  {
+    if (config.blackboard->get("node", node_)) {
+      callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
+      rclcpp::SubscriptionOptions options;
+      options.callback_group = callback_group_;
+      subscription_ = node_->create_subscription<nav_msgs::msg::Path>(
+        "footprint_escape_status", 1, [this](nav_msgs::msg::Path::ConstSharedPtr status) {
+          heartbeat_.update(*status, RecoveryHold::Clock::now());
+        }, options);
+      executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
+      executor_->add_callback_group(callback_group_, node_->get_node_base_interface());
+    }
+  }
   static BT::PortsList providedPorts() {return {BT::InputPort<nav_msgs::msg::Path>("path")};}
   BT::NodeStatus tick() override
   {
     const auto bb=config().blackboard;
+    if (node_) {
+      executor_->spin_some();
+      bb->set("ranger_escape_heartbeat", heartbeat_);
+      bb->set("ranger_escape_ros_now", node_->now().seconds());
+    }
     ObstructionCheck check;
     bb->get("ranger_obstruction",check);
     if (check.holding) {
       if (getInput<nav_msgs::msg::Path>("path").value().header==check.path) {
+        if (recoveryMayContinue(bb, check.path)) {return child_node_->executeTick();}
         resetChild();
         return BT::NodeStatus::RUNNING;
       }
@@ -152,6 +186,12 @@ public:
     }
     return child_node_->executeTick();
   }
+private:
+  rclcpp::Node::SharedPtr node_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_;
+  std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr subscription_;
+  RecoveryHold heartbeat_;
 };
 
 class ClearNavigationPath : public BT::SyncActionNode

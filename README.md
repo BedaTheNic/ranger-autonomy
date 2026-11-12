@@ -15,6 +15,7 @@ instructions for the current update and diagnostic procedures.
 - Retained valid paths, planned rotations and final approach behavior.
 - Separate SLAM, AMCL, map server, lifecycle, navigation and telemetry services.
 - Segmented JSONL logging, dated sessions, 20 MiB rotation and costmap snapshots.
+- Optional full-message rosbag2 recording in a separate Compose project.
 
 ## Navigation footprint
 
@@ -98,6 +99,7 @@ publishing images and a deployment archive. Push a `jazzy-*` tag or run it manua
 
 - [Navigation behavior and original simulation results](docs/ADAPTIVE_NAVIGATION.md)
 - [Structured logging and diagnostic format](docs/LOGGING.md)
+- [Full-rate Ranger bags and Windows download commands](docs/BAG_RECORDING.md)
 - [Robot interface contract](autonomy_stack/hardware/robot-contract.yaml)
 
 Canonical package/config inputs are embedded in each image's

@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-navigation2 ros-jazzy-nav2-bringup ros-jazzy-slam-toolbox \
     ros-jazzy-pointcloud-to-laserscan ros-jazzy-tf2-tools \
     ros-jazzy-rmw-cyclonedds-cpp ros-jazzy-rmw-fastrtps-cpp \
+    ros-jazzy-rosbag2 ros-jazzy-rosbag2-storage-mcap \
     libxtensor-dev libxsimd-dev \
     && rm -rf /var/lib/apt/lists/*
 
