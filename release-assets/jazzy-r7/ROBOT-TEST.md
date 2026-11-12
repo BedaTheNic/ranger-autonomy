@@ -15,47 +15,13 @@ ssh ranger@%ROBOT_IP%
 
 ## Update the existing R6 installation
 
-With the robot stationary, run this in the robot SSH session. The backup
-directory printed at the end contains your original `.env`, Compose file and
-any recorder files replaced by this update.
+With the robot stationary, download and run the updater in the robot SSH session.
+It verifies the deployment archive and the image tested in CI. It prints the
+backup directory for the original `.env`, Compose and recorder files.
 
 ```bash
-bash -euo pipefail <<'BASH'
-image=ghcr.io/bedathenic/ranger-autonomy:jazzy-r7
-docker pull --platform linux/amd64 "$image"
-test "$(docker image inspect -f '{{.Id}}' "$image")" = 'sha256:1a91eca9812d2f42f5878c9a44960451537e2eed01ced1aaa71a6b2b4e46e3c4'
-
-stage="$(mktemp -d)"
-trap 'rm -rf -- "$stage"' EXIT
-release=https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r7
-(
-  cd "$stage"
-  curl -fsSL --retry 3 "$release/ranger-hardware-deploy.tar.gz" -o ranger-hardware-deploy.tar.gz
-  curl -fsSL --retry 3 "$release/ranger-hardware-deploy.sha256" -o ranger-hardware-deploy.sha256
-  sha256sum -c ranger-hardware-deploy.sha256
-  tar -xzf ranger-hardware-deploy.tar.gz
-)
-cd /home/ranger/ranger_autonomy/ranger-hardware
-if [[ "$(docker inspect -f '{{.State.Running}}' ranger_hero_drive-guard 2>/dev/null)" == true ]]; then
-  bash drive.sh disarm
-fi
-if [[ "$(docker inspect -f '{{.State.Running}}' ranger_hero_bag-recorder 2>/dev/null)" == true ]]; then
-  bash bag.sh stop
-fi
-backup="$(mktemp -d "$PWD/r7-backup.XXXXXX")"
-cp -p -- .env "$backup/"
-for file in compose.yaml compose.bag.yaml bag.sh bag_record.py bag_export.py config/bag_topics.yaml config/bag_qos.yaml; do
-  if [[ -f "$file" ]]; then cp --parents -p -- "$file" "$backup/"; fi
-  install -D -m 0644 "$stage/ranger-hardware/$file" "$file"
-done
-sed -i -E '/^(AUTONOMY_IMAGE|NAV_PROFILE|FOOTPRINT_ESCAPE_ENABLED|RANGER_GUI_NAVIGATION_TOOLS)=/d' .env
-printf '\n%s\n' "AUTONOMY_IMAGE=$image" \
-  'NAV_PROFILE=adaptive' 'FOOTPRINT_ESCAPE_ENABLED=true' 'RANGER_GUI_NAVIGATION_TOOLS=true' >> .env
-printf 'R6 configuration backup: %s\n' "$backup"
-bash robot.sh external
-bash drive.sh up
-bash viewer.sh up
-BASH
+curl -fsSL --retry 3 https://github.com/BedaTheNic/ranger-autonomy/releases/download/jazzy-r7/ranger-r7-update.sh -o /home/ranger/ranger-r7-update.sh &&
+bash /home/ranger/ranger-r7-update.sh
 ```
 
 ## Check and record

@@ -19,6 +19,9 @@ from tf2_ros import StaticTransformBroadcaster
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import ComputePathToPose, FollowPath, NavigateToPose
 from nav2_msgs.srv import IsPathValid
+from nav2_msgs.msg import Costmap
+from nav_msgs.msg import Path as NavPath
+from rcl_interfaces.srv import GetParameters
 from std_srvs.srv import Trigger
 
 profile=sys.argv[1] if len(sys.argv)>1 else 'adaptive'
@@ -201,6 +204,66 @@ try:
  rclpy.spin_until_future_complete(node,outcome,timeout_sec=5)
  assert outcome.done() and outcome.result().status==5,'NavigateToPose did not finish canceled'
  print('PASS real NavigateToPose: deployed behavior tree, retained-path service, guarded motion and cancellation',flush=True)
+ if profile == 'adaptive':
+  parameter_client=node.create_client(GetParameters, '/controller_server/get_parameters')
+  assert parameter_client.wait_for_service(timeout_sec=5)
+  names=['FollowPath.footprint_escape_enabled', 'FollowPath.Holonomic.footprint_escape_enabled']
+  reply=parameter_client.call_async(GetParameters.Request(names=names))
+  rclpy.spin_until_future_complete(node,reply,timeout_sec=5)
+  enabled=os.environ.get('TEST_FOOTPRINT_ESCAPE_ENABLED') == 'true'
+  assert reply.done() and len(reply.result().values)==2
+  assert all(value.type==1 and value.bool_value==enabled for value in reply.result().values)
+  print('PASS controller and child footprint escape settings:', enabled, flush=True)
+  maps=[];escape_status=[]
+  grid_sub=node.create_subscription(Costmap,'/local_costmap/costmap_raw',lambda msg:maps.append(msg),latched)
+  status_sub=node.create_subscription(NavPath,'/footprint_escape_status',lambda msg:escape_status.append(msg),10)
+  obstacle=(.425,.075)
+  # Invert the fixture's static lidar->base transform. The resulting cloud
+  # continues through the deployed adapter to both costmaps and the guard.
+  cloud.data=bytes(cloud.data)+struct.pack('<fff',obstacle[1]+.007,-(obstacle[0]-.288),.4)
+  cloud.width+=1;cloud.row_step=cloud.width*cloud.point_step
+  deadline=time.monotonic()+8
+  found=False
+  while time.monotonic()<deadline:
+   rclpy.spin_once(node,timeout_sec=.05)
+   if maps:
+    current=maps[-1];origin=current.metadata.origin.position;resolution=current.metadata.resolution
+    mx=int((obstacle[0]-origin.x)/resolution);my=int((obstacle[1]-origin.y)/resolution)
+    if current.data[my*current.metadata.size_x+mx]==254:
+     found=True;break
+  assert found,'Fixture obstacle must be lethal in the local costmap before the turn'
+  candidate_commands.clear();guard_commands.clear()
+  turn=FollowPath.Goal();turn.controller_id='FollowPath';turn.goal_checker_id='goal_checker'
+  from geometry_msgs.msg import PoseStamped
+  target=PoseStamped();target.header.frame_id='map';target.header.stamp=node.get_clock().now().to_msg()
+  target.pose.orientation.z=math.sin(math.pi/4);target.pose.orientation.w=math.cos(math.pi/4)
+  turn.path.header=target.header;turn.path.poses=[target]
+  future=follow.send_goal_async(turn);rclpy.spin_until_future_complete(node,future,timeout_sec=5)
+  rotating=future.result();assert rotating and rotating.accepted
+  turn_result=rotating.get_result_async()
+  deadline=time.monotonic()+6
+  while time.monotonic()<deadline:
+   rclpy.spin_once(node,timeout_sec=.05)
+   if turn_result.done() or (any(status.poses for status in escape_status)
+                              and any(moving(msg) for _,msg in guard_commands)):
+    break
+  if enabled:
+   assert any(status.poses and status.header==turn.path.header for status in escape_status),'No active path-matched escape'
+   for label, commands in [('controller',candidate_commands),('guard',guard_commands)]:
+    nonzero=[msg for _,msg in commands if moving(msg)]
+    assert nonzero,label+' sent no motion'
+    assert all(0 < math.hypot(msg.linear.x,msg.linear.y) <= .060001
+               and abs(msg.angular.z)<1e-6 for msg in nonzero),label+' exceeded escape command limits'
+    print('PASS',label,'bounded escape translation',flush=True)
+   cancel=rotating.cancel_goal_async();rclpy.spin_until_future_complete(node,cancel,timeout_sec=5)
+   assert cancel.done() and cancel.result().goals_canceling
+   rclpy.spin_until_future_complete(node,turn_result,timeout_sec=5)
+   assert turn_result.done() and turn_result.result().status==5
+  else:
+   assert turn_result.done() and turn_result.result().status==6,'Blocked turn should abort with escape disabled'
+   assert not any(status.poses for status in escape_status)
+   assert not any(moving(msg) for _,msg in guard_commands)
+   print('PASS blocked turn stopped with footprint escape disabled',flush=True)
  print('PASS',profile,': scan conversion, Nav2 activation, planning, retained-path validity, controller/guard wiring, stale-scan stop and cancellation; poses=',len(response.result.path.poses),flush=True)
 finally:
  from nav2_msgs.srv import ManageLifecycleNodes

@@ -1,4 +1,4 @@
-name: Publish verified Jazzy R7 deployment
+name: Build, test and publish Jazzy R7
 
 on:
   push:
@@ -7,9 +7,104 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ranger-jazzy-r7
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/bedathenic/ranger-autonomy:jazzy-r7
+
 jobs:
-  release:
+  verify:
     if: github.repository == 'BedaTheNic/ranger-autonomy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_id: ${{ steps.push.outputs.image_id }}
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      - name: Build Linux amd64 R7
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: autonomy_stack/docker/Dockerfile.jazzy
+          target: runtime
+          platforms: linux/amd64
+          load: true
+          tags: ranger-autonomy:ci
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=verify
+      - name: Run Jazzy navigation and logging regression suites
+        run: |
+          docker run --rm --network none ranger-autonomy:ci bash /opt/autonomy/hardware/tests/unit_tests.sh
+          docker run --rm --network none ranger-autonomy:ci python3 -m unittest discover \
+            -s /opt/autonomy/hardware/tests -p test_bag_export.py
+      - name: Check measured steering and the drive gateway
+        run: |
+          sudo modprobe vcan
+          docker run --rm --network none --cap-add NET_ADMIN \
+            -e ROS_DOMAIN_ID=211 -e FASTDDS_BUILTIN_TRANSPORTS=UDPv4 -e RANGER_LOG_ENABLED=0 \
+            ranger-autonomy:ci python3 /opt/autonomy/hardware/tests/steering_feedback_smoke.py
+          python3 autonomy_stack/hardware/tests/drive_smoke.py --image ranger-autonomy:ci \
+            --output "$RUNNER_TEMP/ranger-validation/drive"
+      - name: Test blocked turns, navigation profiles and stopping behavior
+        run: |
+          test_script=autonomy_stack/hardware/tests/compose_smoke.py
+          output="$RUNNER_TEMP/ranger-validation"
+          FOOTPRINT_ESCAPE_ENABLED=true python3 "$test_script" --image ranger-autonomy:ci \
+            --profile adaptive --can-steering --output "$output/adaptive-enabled"
+          FOOTPRINT_ESCAPE_ENABLED=false python3 "$test_script" --image ranger-autonomy:ci \
+            --profile adaptive --output "$output/adaptive-disabled"
+          for profile in holonomic ackermann; do
+            FOOTPRINT_ESCAPE_ENABLED=false python3 "$test_script" --image ranger-autonomy:ci \
+              --profile "$profile" --output "$output/$profile"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ranger-r7-validation
+          path: ${{ runner.temp }}/ranger-validation
+      - name: Verify the staged deployment bundle
+        working-directory: release-assets/jazzy-r7
+        run: |
+          sha256sum --check --strict ranger-hardware-deploy.sha256
+          bash -n ranger-r7-update.sh
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish the tested R7 image
+        id: push
+        run: |
+          set -euo pipefail
+          if docker manifest inspect "$IMAGE" > "$RUNNER_TEMP/r7-manifest" 2> "$RUNNER_TEMP/r7-inspect-error"; then
+            echo "The R7 tag already exists." >&2
+            exit 1
+          fi
+          if ! grep -Eq 'manifest unknown|no such manifest' "$RUNNER_TEMP/r7-inspect-error"; then
+            cat "$RUNNER_TEMP/r7-inspect-error" >&2
+            exit 1
+          fi
+          docker tag ranger-autonomy:ci "$IMAGE"
+          docker push "$IMAGE" | tee "$RUNNER_TEMP/r7-push.log"
+          image_id="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
+          digest="$(awk '/^jazzy-r7: digest: / {print $3}' "$RUNNER_TEMP/r7-push.log")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ && "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf 'image_id=%s\ndigest=%s\n' "$image_id" "$digest" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -20,18 +115,26 @@ jobs:
           persist-credentials: false
       - name: Verify public image and deployment bundle
         working-directory: release-assets/jazzy-r7
+        env:
+          IMAGE_ID: ${{ needs.verify.outputs.image_id }}
+          DIGEST: ${{ needs.verify.outputs.digest }}
         run: |
           set -euo pipefail
-          image=ghcr.io/bedathenic/ranger-autonomy:jazzy-r7
-          docker pull --platform linux/amd64 "$image"
-          test "$(docker image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$image")" = 'sha256:1a91eca9812d2f42f5878c9a44960451537e2eed01ced1aaa71a6b2b4e46e3c4 linux/amd64'
+          docker pull --platform linux/amd64 "$IMAGE"
+          test "$(docker image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$IMAGE")" = "$IMAGE_ID linux/amd64"
+          docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$IMAGE" |
+            grep -Fx "ghcr.io/bedathenic/ranger-autonomy@$DIGEST"
           sha256sum --check --strict ranger-hardware-deploy.sha256
+          printf '%s\n' "$IMAGE_ID" > ranger-image.id
+          printf '\nCI source: `%s`\nImage ID: `%s`\nRegistry digest: `%s`\n' \
+            "$GITHUB_SHA" "$IMAGE_ID" "$DIGEST" >> RELEASE-NOTES.md
       - name: Publish Jazzy R7 release
         working-directory: release-assets/jazzy-r7
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create jazzy-r7 ranger-hardware-deploy.tar.gz ranger-hardware-deploy.sha256 ROBOT-TEST.md \
+          gh release create jazzy-r7 ranger-hardware-deploy.tar.gz ranger-hardware-deploy.sha256 \
+            ranger-image.id ranger-r7-update.sh ROBOT-TEST.md \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title 'Ranger autonomy jazzy-r7' --notes-file RELEASE-NOTES.md

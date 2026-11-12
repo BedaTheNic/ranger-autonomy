@@ -46,7 +46,8 @@ def main():
         command=['python3', '/test/tests/image_smoke.py', args.profile, '--external'] +
                 (['--can-steering'] if args.can_steering else []),
         environment=dict(ROS_DOMAIN_ID='211', RMW_IMPLEMENTATION=args.rmw,
-                         FASTDDS_BUILTIN_TRANSPORTS='UDPv4', RANGER_ISOLATED_CAN_TEST='1'),
+                         FASTDDS_BUILTIN_TRANSPORTS='UDPv4', RANGER_ISOLATED_CAN_TEST='1',
+                         TEST_FOOTPRINT_ESCAPE_ENABLED=os.environ.get('FOOTPRINT_ESCAPE_ENABLED','false')),
         volumes=[str(hardware)+':/test:ro'], networks=['isolated'])
     if args.can_steering:
         services['fixture']['cap_add'] = ['NET_ADMIN']
