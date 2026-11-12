@@ -1,0 +1,37 @@
+name: Publish verified Jazzy R7 deployment
+
+on:
+  push:
+    branches: [release/jazzy-r7]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.repository == 'BedaTheNic/ranger-autonomy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Verify public image and deployment bundle
+        working-directory: release-assets/jazzy-r7
+        run: |
+          set -euo pipefail
+          image=ghcr.io/bedathenic/ranger-autonomy:jazzy-r7
+          docker pull --platform linux/amd64 "$image"
+          test "$(docker image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$image")" = 'sha256:1a91eca9812d2f42f5878c9a44960451537e2eed01ced1aaa71a6b2b4e46e3c4 linux/amd64'
+          sha256sum --check --strict ranger-hardware-deploy.sha256
+      - name: Publish Jazzy R7 release
+        working-directory: release-assets/jazzy-r7
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create jazzy-r7 ranger-hardware-deploy.tar.gz ranger-hardware-deploy.sha256 ROBOT-TEST.md \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title 'Ranger autonomy jazzy-r7' --notes-file RELEASE-NOTES.md
